@@ -1,0 +1,64 @@
+#+TITLE: dpom/dotfiles
+#+AUTHOR: Dan Pomohaci
+#+STARTUP: showeverything
+
+A declarative, reproducible configuration for my system using *NixOS*, *Home Manager*, and a literate *Emacs* environment.
+
+---
+
+* Overview
+This repository contains my personal system and user configurations. The setup is designed to be fully reproducible across my machines, leveraging the power of Nix flakes and the declarative nature of the Nix ecosystem.
+
+* Core Stack
+- *OS:* NixOS (with Flakes)
+- *User Environment:* Home Manager
+- *Primary Editor / OS:* Emacs (tailored for Clojure, Emacs Lisp, and development workflows)
+- *Secrets Management:* SOPS-Nix / Agenix
+
+* Repository Structure
+#+BEGIN_SRC text
+.
+├── flake.nix            # Main entry point for the system flake
+├── hosts/               # Machine-specific configurations
+│   └── mary/            # Framework 13 hardware and specific tweaks
+└── modules/             # Shared/reusable NixOS & Home Manager modules
+    ├── nixos/           # System-level base configurations
+    └── home/            # Home Manager configuration
+#+END_SRC
+
+* Emacs Setup
+Emacs is central to my workflow. The configuration is optimized for:
+- *Development:* Deep integration with functional programming paradigms (Clojure via CIDER, Emacs Lisp).
+- *Tools:* Magit for Git wizardry, =mu4e= for email management, and =gptel= for local AI/Ollama workflows.
+- *Templates:* Extensive use of =tempel= for fast, contextual code snippets.
+
+* Installation & Deployment
+
+*** Prerequisites
+Ensure you have Nix installed with flakes enabled. If you are on a non-NixOS system, you will need Home Manager standalone.
+
+*** Bootstrap
+1. Clone this repository into your home directory (traditionally =~/dotfiles= or =~/.config/dotfiles=):
+   #+BEGIN_SRC sh
+   git clone https://github.com/dpom/dotfiles.git ~/dotfiles
+   cd ~/dotfiles
+   #+END_SRC
+2. In emacs tangle Config.txt and Emacs.txt files.
+3. To apply the NixOS configuration for a specific host:
+   #+BEGIN_SRC sh
+   sudo nixos-rebuild switch --flake .#mary
+   #+END_SRC
+4. To apply the Home Manager standalone configuration (if applicable):
+   #+BEGIN_SRC sh
+   home-manager switch --flake .#dan
+   #+END_SRC
+
+If you install [[https://github.com/dpom/ent][ent]] (or use my configuration) you could run the 2,3, and 4 steps from emacs with the =ent= tasks:
+- update-system
+- update-home
+
+* Secrets Management
+Secrets (such as SSH keys, API tokens, and email credentials) are managed securely using declarative secret tooling pinned to =~/.ssh=. Do not commit unencrypted secrets to this repository.
+
+* License
+This project is licensed under the GPL 3.0 License - see the LICENSE file for details.
