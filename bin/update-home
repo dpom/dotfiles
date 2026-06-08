@@ -1,0 +1,2 @@
+rm -f ~/.config/mimeapps.list.backup
+home-manager switch -b backup --flake .#dan@$(hostname) $@

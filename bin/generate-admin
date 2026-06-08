@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Navigate to the directory of this script (generally ./bin)
+cd $(dirname $(dirname $(readlink -f $0)))
+
+
+if ! [ -x "$(command -v emacs)" ]; then
+    EMACS_CMD="nix run nixpkgs#emacs-nox --"
+else
+    EMACS_CMD="emacs"
+fi
+
+# The heavy lifting is done by an Emacs script
+$EMACS_CMD -Q --script ./bin/tangle-admin.el

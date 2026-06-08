@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+read -d '\n' staged_packages << 'EOF'
+dmenu
+git
+home-manager
+keychain
+mc
+nitrogen
+pavucontrol
+pasystray
+picom
+pinentry-curses 
+polkit_gnome
+pulseaudioFull
+rofi
+udiskie
+udisks
+unrar
+unzip
+usbutils
+vim
+wget
+xcalib
+EOF
+
+packages="${staged_packages//$'\n'/ }"
+
+nix profile install  $packages
+nix profile install gnome-keyring

@@ -1,0 +1,6 @@
+/.sops.yaml
+*~
+/tmp/
+#*
+eln-cache/
+.direnv/

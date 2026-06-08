@@ -1,0 +1,8 @@
+echo "trusted-users = root dan" | sudo tee -a /etc/nix/nix.conf
+
+echo "extra-experimental-features = flakes nix-command ca-derivations " | sudo tee -a /etc/nix/nix.conf
+
+sudo mkdir -m 0755 -p /nix/var/nix/{profiles,gcroots}/per-user/$USER
+sudo chown -R $USER:nixbld /nix/var/nix/profiles/per-user/$USER
+
+sudo pkill nix-daemon

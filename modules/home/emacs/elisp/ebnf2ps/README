@@ -1,0 +1,30 @@
+
+ebnf2ps.tar.gz contains the following files:
+
+   README	this file
+   ebnf-anb.el	ABNF parser
+   ebnf-bnf.el	EBNF parser
+   ebnf-dtd.el	DTD parser
+   ebnf-ebx.el	EBNFX parser
+   ebnf-iso.el	ISO EBNF parser
+   ebnf-otz.el	EBNF optimizer
+   ebnf-yac.el	Yacc/Bison parser
+   ebnf2ps.el	main file
+   ebnf2ps.new	News
+
+The file iso-14977.pdf contains the ISO EBNF specification, this file is apart
+from this package and it can be downloaded from:
+http://www.cl.cam.ac.uk/~mgk25/iso-14977.pdf
+
+The file rfc2234.txt contains the ABNF specification, this file is apart from
+this package and it can be downloaded from: http://www.ietf.org/rfc/rfc2234.txt
+or http://www.faqs.org/rfcs/rfc2234.html, http://www.rnp.br/ietf/rfc/rfc2234.txt
+(Augmented BNF for Syntax Specifications: ABNF).
+
+
+
+Happy hacking
+
+
+Vinicius
+https://www.emacswiki.org/cgi-bin/wiki/ViniciusJoseLatorre

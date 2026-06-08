@@ -1,0 +1,3253 @@
+;;; -*- mode: org; -*-
+#+TITLE: Hosts Configuration
+#+DESCRIPTION: my hosts configuration
+#+STARTUP: overview indent align inlineimages
+#+PROPERTY: header-args :mkdirp yes
+
+This file contains the configuration for all of my hosts. It is an Org file written in LP, and I use the ~org-babel-tangle~ command or the =generate= command within =ent= to generate the specific configuration files.
+
+* flake.nix
+
+#+begin_src nix :tangle ./flake.nix :noweb yes
+{
+  description = "My NixOS configuration";
+
+  inputs = {
+    <<flake-inputs>>
+  };
+  outputs = { self,
+              emacs-overlay,
+              home-manager,
+              nix-hermes,
+              nixgl,
+              nixpkgs,
+              stylix,
+              systems,
+              sops-nix,
+              ... } @ inputs:
+    let
+      <<flake-let-outputs>>
+    in {
+      inherit lib;
+      nixosConfigurations = {
+        <<nixos-configs>>
+      };
+      homeConfigurations = {
+        <<home-configs>>
+      };
+    };
+}
+#+end_src
+
+** inputs
+:PROPERTIES:
+  :header-args: :noweb-ref flake-inputs
+:END:
+
+- nix ecosistem:
+  #+begin_src nix
+nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+# nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+  #+end_src
+- home manager:
+  #+begin_src nix
+home-manager = {
+  url = "github:nix-community/home-manager/release-25.11";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+  #+end_src
+- stylix
+  #+begin_src nix
+stylix = {
+  url = "github:danth/stylix/release-25.11";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+  #+end_src
+- nixgl
+  #+begin_src nix
+nixgl = {
+  url = "github:guibou/nixGL";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+  #+end_src
+- emacs
+  #+begin_src nix
+emacs-overlay.url = "github:nix-community/emacs-overlay";
+  #+end_src
+- my packages
+  #+begin_src nix
+dpom.url = "git+https://github.com/dpom/mynixpkgs";
+  #+end_src
+- secrets
+  #+begin_src nix
+sops-nix = {
+  url = "github:Mic92/sops-nix";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+  #+end_src
+- solaar (logitech)
+  #+begin_src nix
+solaar = {
+  url = "https://flakehub.com/f/Svenum/Solaar-Flake/*.tar.gz"; # For latest stable version
+  #url = "https://flakehub.com/f/Svenum/Solaar-Flake/0.1.1.tar.gz"; # uncomment line for solaar version 1.1.13
+  # url = "github:Svenum/Solaar-Flake/main"; # Uncomment line for latest unstable version
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+   #+end_src
+- cute-sway-recorder
+  #+begin_src nix
+cute-sway-recorder = {
+  url = "github:it-is-wednesday/cute-sway-recorder";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+  #+end_src
+- nix-ld (https://github.com/nix-community/nix-ld)
+  #+begin_src nix :tangle no
+nix-ld = {
+  url = "github:Mic92/nix-ld";
+  inputs.nixpkgs.follows = "nixpkgs";
+};
+  #+end_src
+- hermes (https://hermes-agent.nousresearch.com/docs/getting-started/nix-setup#declarative-settings)
+  #+begin_src nix
+  nix-hermes.url = "github:0xrsydn/nix-hermes-agent";
+  #+end_src
+** outputs let
+:PROPERTIES:
+  :header-args: :noweb-ref flake-let-outputs
+:END:
+
+- inherits it himself:
+  #+begin_src nix
+inherit (self) outputs;
+  #+end_src
+- libraries:
+  #+begin_src nix
+    lib = nixpkgs.lib // home-manager.lib;
+  #+end_src
+*** overlays
+- for each defined platform:
+  #+begin_src nix :noweb yes
+forEachSystem = f: lib.genAttrs (import systems) (system: f pkgsFor.${system});
+pkgsFor = lib.genAttrs (import systems) (
+  system:
+  import nixpkgs {
+    inherit system;
+    config = {
+      allowUnfree = true;
+      pulseaudio = true;
+    };
+    overlays = [
+       nixgl.overlay
+       emacs-overlay.overlays.default
+    ];
+  }
+);
+  #+end_src
+
+* User Variables
+
+#+begin_src nix :tangle vars.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    user-vars = {
+      user = lib.mkOption {
+        type = lib.types.str;
+        description = "user login";
+        default = "dan";
+      };
+      name = lib.mkOption {
+        type = lib.types.str;
+        description = "user name";
+        default = "Dan Pomohaci";
+      };
+      home = lib.mkOption {
+        type = lib.types.str;
+        description = "user home";
+        default = "/home/dan";
+      };
+      locale = lib.mkOption {
+        type = lib.types.str;
+        description = "user locale";
+        default = "en_US.UTF-8";
+      };
+      timezone = lib.mkOption {
+        type = lib.types.str;
+        description = "user local timezone";
+        default = "Europe/Bucharest";
+      };
+      proj-root = lib.mkOption {
+        type = lib.types.path;
+        description = "the configuration project path root";
+        # default = /home/dan/.dotfiles;
+        default = ./.;
+      };
+    };
+  };
+}
+#+end_src
+
+* Secrets
+
+#+begin_src nix :tangle sops.nix
+{ config, ... }:
+{
+# Basic SOPS Configuration
+  sops = {
+    defaultSopsFile = ./secrets/secrets.yaml;
+    defaultSopsFormat = "yaml";
+
+    age.keyFile = "${config.user-vars.home}/.ssh/id_sops_age";
+
+  };
+}
+#+end_src
+* Hosts
+** mary
+
+NixOS Configuration for mary  (Framework Laptop)
+
+*** nixos
+
+#+begin_src nix :noweb-ref nixos-configs
+mary = lib.nixosSystem {
+  specialArgs = {
+    inherit inputs outputs;
+  };
+  modules = [
+    sops-nix.nixosModules.sops
+    ./vars.nix
+    ./sops.nix
+    ./hosts/mary/nixos.nix
+    # nix-ld.nixosModules { programs.nix-ld.dev.enable = true; }
+  ];
+};
+#+end_src
+
+#+begin_src nix :tangle ./hosts/mary/nixos.nix :noweb yes
+{
+  config,
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  bob-host-id = config.sops.secrets.bob_host_id.path;
+  remarkable-host-id = config.sops.secrets.remarkable_host_id.path;
+in
+{
+
+  <<mary-nixos>>
+
+  # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
+  system.stateVersion = "25.11";
+}
+#+end_src
+
+**** imports
+
+#+begin_src nix :noweb-ref mary-nixos
+imports = [
+  inputs.nixos-hardware.nixosModules.framework-amd-ai-300-series
+  ./hardware-configuration.nix
+  ../../modules/nixos
+];
+#+end_src
+
+**** bootloader
+
+#+begin_src nix :noweb-ref mary-nixos
+# Bootloader.
+boot.loader.systemd-boot.enable = true;
+boot.loader.efi.canTouchEfiVariables = true;
+# boot.loader.limine.maxGenerations = 10;
+boot.kernelPackages = pkgs.linuxPackages_latest;
+#+end_src
+
+**** networking
+
+#+begin_src nix :noweb-ref mary-nixos
+networking = {
+  hostName = "mary";
+  # Enable networking
+  networkmanager.enable = true;
+  hosts = {
+    bob-host-id = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+    remarkable-host-id = [ "remarkable"];
+  };
+  # Optional: Open the  ollama default port if you want to access it from other devices
+  firewall.allowedTCPPorts = [ 11434 ];
+};
+
+#+end_src
+
+**** modules
+
+#+begin_src nix :noweb-ref mary-nixos
+dpom-docker.enable = true;
+dpom-greetd.enable = true;
+dpom-solaar.enable = true;
+dpom-sway.enable = true;
+dpom-videorec.enable = true;
+dpom-proton.enable = true;
+dpom-email.enable = true;
+#+end_src
+
+**** power management
+
+#+begin_src nix :noweb-ref mary-nixos
+powerManagement = {
+  enable = true;
+  powertop.enable = true;
+  cpuFreqGovernor = lib.mkDefault "ondemand";
+};
+
+#+end_src
+
+**** bluetooth
+
+#+begin_src nix :noweb-ref mary-nixos
+hardware.bluetooth = {
+  enable = true;
+  powerOnBoot = true;
+  settings = {
+    General = {
+      # Shows battery charge of connected devices on supported
+      # Bluetooth adapters. Defaults to 'false'.
+      Experimental = true;
+      # When enabled other devices can connect faster to us, however
+      # the tradeoff is increased power consumption. Defaults to
+      # 'false'.
+      FastConnectable = true;
+    };
+    Policy = {
+      # Enable all controllers when they are found. This includes
+      # adapters present on start as well as adapters that are plugged
+      # in later on. Defaults to 'true'.
+      AutoEnable = true;
+    };
+  };
+};
+
+#+end_src
+
+**** Enable thermal data
+
+#+begin_src nix :noweb-ref mary-nixos
+services.thermald.enable = true;
+#+end_src
+
+**** rtkit
+
+#+begin_src nix :noweb-ref mary-nixos
+security.rtkit.enable = true;
+
+#+end_src
+
+**** framework tools si systemPackages
+#+begin_src nix :noweb-ref mary-nixos
+environment.systemPackages = with pkgs; [
+  framework-tool
+  lm_sensors  # Provides 'sensors' command
+  fw-ectool   # Framework-specific EC tool
+  swtpm # emulare TPM
+];
+
+#+end_src
+
+**** fingerprint suport
+
+#+begin_src nix :noweb-ref mary-nixos
+services.fprintd.enable = true;
+
+#+end_src
+
+**** Custom udev rules
+
+#+begin_src nix :noweb-ref mary-nixos
+services.udev.extraRules = ''
+  # Ethernet expansion card support
+  ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="0bda", ATTR{idProduct}=="8156", ATTR{power/autosuspend}="20"
+  '';
+
+#+end_src
+
+**** touchpad
+
+#+begin_src nix :noweb-ref mary-nixos
+services.libinput.enable = true;
+
+#+end_src
+
+**** fixing amd issues
+
+- mic nu merge (https://github.com/NixOS/nixos-hardware/issues/1603)
+#+begin_src nix :noweb-ref mary-nixos
+services.pipewire.wireplumber.extraConfig.no-ucm = {
+  "monitor.alsa.properties" = {
+    "alsa.use-ucm" = false;
+  };
+};
+
+#+end_src
+
+**** Updating firmware
+
+#+begin_src nix :noweb-ref mary-nixos
+services.fwupd.enable = true;
+
+#+end_src
+
+**** syncthing
+
+#+begin_src nix :noweb-ref mary-nixos :noweb yes
+
+<<common-syncthing>>
+
+services.syncthing = {
+  <<common-syncthing-service>>
+
+  settings = {
+    <<common-syncthing-service-settings>>
+
+    devices = {
+      "bob" = { id = config.sops.secrets.bob_sync_id.path; };
+      "mike" = { id = config.sops.secrets.mike_sync_id.path; };
+    };
+
+    folders = lib.mapAttrs (name: value: {
+      label = name;
+      path = "${config.user-vars.home}/${value.subPath}";
+      devices = [ "bob" ];
+    }) {
+      "sync" = { subPath = "Sync"; };
+      "plan" = { subPath = "pers/plan"; };
+      "notes" = { subPath = "pers/notes"; };
+      "tutor" = { subPath = "pers/tutor"; };
+      "facturi" = { subPath = "pers/facturi"; };
+      "pfa" = { subPath = "pers/pfa"; };
+      "Maildir" = { subPath = "Maildir"; };
+      "work" = { subPath = "work"; };
+    };
+   };
+};
+
+#+end_src
+
+**** fan
+
+- control the fan
+#+begin_src nix :noweb-ref mary-nixos
+hardware.fw-fanctrl = {
+  enable = true;
+  config = {
+    defaultStrategy = "agile";
+  };
+  disableBatteryTempCheck = false;
+};
+
+#+end_src
+
+**** ollama
+
+#+begin_src nix :noweb-ref mary-nixos
+# Configurarea grupurilor și utilizatorului pentru acces GPU
+users.groups.ollama = {}; # Creează grupul de bază
+
+users.users.ollama = {
+  group = "ollama";
+  extraGroups = [ "video" "render" ];
+  isSystemUser = true; # Aceasta rezolvă eroarea "Exactly one of isSystemUser and isNormalUser must be set"
+};
+
+services.ollama = {
+  enable = true;
+  acceleration = "rocm";
+
+  # Verifică dacă argumentele transmise aici se potrivesc cu ce cere ollama.nix
+  package = pkgs.callPackage ../../modules/nixos/ollama.nix {
+    inherit (pkgs) ollama fetchFromGitHub rocmPackages;
+    acceleration = "rocm";
+  };
+
+  rocmOverrideGfx = "11.0.0";
+  environmentVariables = {
+    HSA_OVERRIDE_GFX_VERSION = "11.0.0";
+    # Această linie este critică pentru a găsi bibliotecile GPU în NixOS
+    LD_LIBRARY_PATH = "/run/add-opengl-driver/lib:${pkgs.rocmPackages.clr}/lib";
+
+  };
+};
+
+hardware.graphics = {
+  enable = true;
+  extraPackages = with pkgs; [
+    rocmPackages.clr.icd
+    rocmPackages.clr
+    rocmPackages.rocminfo # Util pentru debugging
+  ];
+};
+programs.nix-ld.enable = true;
+
+#+end_src
+
+**** virtualizare
+
+#+begin_src nix :noweb-ref mary-nixos
+# Activează virtualizarea
+virtualisation.libvirtd.enable = true;
+
+# Instalează programele necesare
+programs.virt-manager.enable = true;
+
+# Adaugă utilizatorul tău în grupul libvirtd pentru a rula fără sudo permanent
+users.users.dan.extraGroups = [ "libvirtd" ];
+
+# Configurează libvirtd să permită emularea TPM
+virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la dispozitivele de securitate
+#+end_src
+
+*** home
+
+#+begin_src nix :noweb-ref home-configs
+"dan@mary" = lib.homeManagerConfiguration {
+  pkgs = pkgsFor.x86_64-linux;
+  extraSpecialArgs = {
+    inherit inputs outputs;
+  };
+  modules = [
+    ./vars.nix
+    ./sops.nix
+    ./hosts/mary/home.nix
+  ];
+};
+
+#+end_src
+
+
+#+begin_src nix :tangle ./hosts/mary/home.nix
+{ inputs, config, lib, pkgs, outputs, ... }:
+{
+  imports = [
+    ../../modules/home
+  ];
+
+  dpom-bash.enable = true;
+  dpom-direnv.enable = true;
+  dpom-hunspell.enable = true;
+  dpom-kanshi.enable = true;
+  dpom-rofi.enable = true;
+  dpom-kitty.enable = true;
+  dpom-office.enable = true;
+  dpom-sway.enable = true;
+  dpom-waybar.enable = true;
+  dpom-swaync.enable = true;
+
+  systemd.user.targets.tray = {
+    Unit = {
+      Description = "Home Manager System Tray";
+      Requires = [ "graphical-session-pre.target" ];
+    };
+  };
+
+  # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
+  home.stateVersion = "25.11";
+}
+#+end_src
+
+* Nixos Modules
+** Common
+
+#+begin_src nix :tangle modules/nixos/default.nix :noweb yes
+{
+  config,
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  <<nixos-common>>
+}
+#+end_src
+
+*** nixpkgs
+
+#+begin_src nix :noweb-ref nixos-common
+nixpkgs = {
+  config = {
+    allowUnfree = true;
+  };
+};
+
+  #+end_src
+
+*** sops
+
+#+begin_src nix :noweb-ref nixos-common
+# Declaring Specific Secrets
+sops.secrets = {
+  "password" = {
+    owner = "${config.user-vars.user}";
+  };
+  "email" = {
+    owner = "${config.user-vars.user}";
+  };
+  "github_api_token" = {
+    owner = "${config.user-vars.user}";
+  };
+  "github_personal_token" = {
+    owner = "${config.user-vars.user}";
+  };
+  "gpg_gripkey" = {
+    owner = "${config.user-vars.user}";
+  };
+  "bob_sync_id" = {
+    owner = "${config.user-vars.user}";
+  };
+  "mary_sync_id" = {
+    owner = "${config.user-vars.user}";
+  };
+  "mike_sync_id" = {
+    owner = "${config.user-vars.user}";
+  };
+  "fram_sync_id" = {
+    owner = "${config.user-vars.user}";
+  };
+  "gpg_ssh_key" = {
+    owner = "${config.user-vars.user}";
+  };
+  "private_dir" = {
+    owner = "${config.user-vars.user}";
+  };
+  "bob_host_id" = {
+    owner = "${config.user-vars.user}";
+  };
+  "remarkable_host_id" = {
+    owner = "${config.user-vars.user}";
+  };
+};
+
+#+end_src
+
+*** imports
+
+#+begin_src nix :noweb-ref nixos-common
+imports = [
+  inputs.stylix.nixosModules.stylix
+  ./cdrom.nix
+  ./docker.nix
+  ./emacs.nix
+  ./email.nix
+  ./fonts.nix
+  ./nvidia.nix
+  ./greetd.nix
+  ./podman.nix
+  ./proton.nix
+  ./solaar.nix
+  ./sway.nix
+  ./videorec.nix
+  ./vpn.nix
+  ./xserver.nix
+];
+#+end_src
+
+*** settings
+
+#+begin_src nix :noweb-ref nixos-common
+  # This will add each flake input as a registry
+  # To make nix3 commands consistent with your flake
+  nix.registry = lib.mapAttrs (_: value: { flake = value; }) inputs;
+  nix.nixPath = [ "nixpkgs=${inputs.nixpkgs}" ];
+
+  # This will additionally add your inputs to the system's legacy channels
+  # Making legacy nix commands consistent as well, awesome!
+  # nix.nixPath = ["/etc/nix/path"];
+  environment.etc =
+    lib.mapAttrs'
+    (name: value: {
+      name = "nix/path/${name}";
+      value.source = value.flake;
+    })
+    config.nix.registry;
+
+  nix.settings = {
+    # Enable flakes and new 'nix' command
+    experimental-features = "nix-command flakes ca-derivations";
+    # Deduplicate and optimize nix store
+    auto-optimise-store = true;
+    access-tokens = ["github=${config.sops.secrets.github_personal_token.path}"];
+  };
+
+#+end_src
+
+*** time zone and locale
+
+#+begin_src nix :noweb-ref nixos-common
+  # Set your time zone.
+  time.timeZone = config.user-vars.timezone;
+
+  # Select internationalisation properties.
+  i18n.defaultLocale = config.user-vars.locale;
+
+  i18n.extraLocaleSettings = {
+    LC_ADDRESS = "ro_RO.UTF-8";
+    LC_IDENTIFICATION = "ro_RO.UTF-8";
+    LC_MEASUREMENT = "ro_RO.UTF-8";
+    LC_MONETARY = "ro_RO.UTF-8";
+    LC_NAME = "ro_RO.UTF-8";
+    LC_NUMERIC = "ro_RO.UTF-8";
+    LC_PAPER = "ro_RO.UTF-8";
+    LC_TELEPHONE = "ro_RO.UTF-8";
+    LC_TIME = "ro_RO.UTF-8";
+    LC_CTYPE="en_US.utf8"; # required by dmenu don't change this
+  };
+
+#+end_src
+
+*** opnegl
+
+#+begin_src nix :noweb-ref nixos-common
+ hardware.graphics.enable = true;
+#+end_src
+
+*** services
+
+#+begin_src nix :noweb-ref nixos-common
+services = {
+  # Enable thermal data
+  thermald.enable = true;
+
+  # Enable fingerprint support
+  fprintd.enable = true;
+
+  libinput = {
+    enable = true;
+    touchpad.disableWhileTyping = true;
+  };
+
+  gvfs.enable = true;
+  pipewire = {
+    enable = true;
+    alsa = {
+      enable = true;
+      support32Bit = true;
+    };
+    pulse.enable = true;
+  };
+  devmon.enable = true;
+  udisks2.enable = true;
+  pcscd.enable = true;
+  # Activate gnome-keyring
+  gnome.gnome-keyring.enable = true;
+  # Disable the SSH agent in GNOME to resolve the conflict
+  gnome.gcr-ssh-agent.enable = false;
+};
+# Ensure that secrets can be unlocked at login
+security.pam.services.login.enableGnomeKeyring = true;
+#+end_src
+
+*** programs
+
+#+begin_src nix :noweb-ref nixos-common
+  programs = {
+    thunar = {
+      enable = true;
+      plugins = with pkgs.xfce; [ thunar-archive-plugin thunar-volman ];
+    };
+    dconf.enable = true;
+    # This enables the system-wide agent service
+    ssh.startAgent = true;
+  };
+
+  # Force the environment variable to the stable systemd path
+  environment.extraInit = ''
+  export SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent"
+'';
+#+end_src
+
+*** security
+
+#+begin_src nix :noweb-ref nixos-common
+  security = {
+    polkit.enable = true;
+    rtkit.enable = true;
+  };
+  # security.pam.services.lightdm.enable = true;
+
+  # Activează un agent polkit (necesar pentru pop-up-uri de securitate)
+  systemd.user.services.polkit-gnome-authentication-agent-1 = {
+    description = "polkit-gnome-authentication-agent-1";
+    wantedBy = [ "graphical-session.target" ];
+    partOf = [ "graphical-session.target" ];
+    serviceConfig = {
+      ExecStart = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
+      Restart = "on-failure";
+      RestartSec = 1;
+      TimeoutStopSec = 10;
+    };
+  };
+
+#+end_src
+
+*** systemd
+
+#+begin_src nix :noweb-ref nixos-common
+  systemd = {
+    sleep.extraConfig = ''
+  AllowSuspend=yes
+  AllowHibernation=yes
+  AllowHybridSleep=yes
+  AllowSuspendThenHibernate=yes
+'';
+  };
+#+end_src
+
+*** bluetooth
+
+#+begin_src nix :noweb-ref nixos-common
+hardware.bluetooth.enable = true;
+services.blueman.enable = true;
+#+end_src
+
+*** system packages
+
+#+begin_src nix :noweb-ref system-packages
+    acpi
+    age
+    git
+    htop
+    localsend
+    mc
+    nitrogen
+    nixd
+    openssh
+    pavucontrol
+    pasystray
+    picom
+    pulseaudioFull
+    udiskie
+    udisks
+    unrar
+    unzip
+    usbutils
+    syncthing
+    wget
+    xcalib
+#+end_src
+
+#+begin_src nix :noweb yes :noweb-ref nixos-common
+  environment.systemPackages = with pkgs; [
+    <<system-packages>>
+    home-manager
+    pinentry-curses
+    polkit_gnome
+  ];
+
+#+end_src
+
+*** users
+
+#+begin_src nix :noweb-ref nixos-common
+users.users = {
+  "${config.user-vars.user}" = {
+    isNormalUser = true;
+    extraGroups = [
+      "audio"
+      "disk"
+      "docker"
+      "lp"
+      "networkmanager"
+      "scanner"
+      "storage"
+      "render"
+      "video"
+      "wheel"
+    ];
+  };
+};
+#+end_src
+
+*** update and cleanup
+
+  #+begin_src nix :noweb-ref nixos-common
+system.autoUpgrade = {
+  enable = true;
+  dates = "weekly";
+  };
+
+nix.gc = {
+  automatic = true;
+  dates = "daily";
+  options = "--delete-older-than 30d";
+};
+  #+end_src
+
+** Syncthing
+
+#+begin_src nix :noweb-ref common-syncthing
+systemd.tmpfiles.rules = [
+  "d ${config.user-vars.home}/syncthing - ${config.user-vars.user} users"
+];
+
+systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
+
+#+end_src
+
+#+begin_src nix :noweb-ref common-syncthing-service
+  enable = true;
+  openDefaultPorts = true;
+  user = config.user-vars.user;
+  group = "users";
+  dataDir = config.user-vars.home;    # Default folder for new synced folders, instead of /var/lib/syncthing
+  configDir = "${config.user-vars.home}/.local/state/syncthing";   # Folder for Syncthing's settings and keys
+  overrideDevices = true; # Removes devices from Syncthing that are not configured here
+  overrideFolders = true; # Removes folders from Syncthing that are not configured here
+
+#+end_src
+
+#+begin_src nix :noweb-ref common-syncthing-service-settings
+    options = {
+      localAnnouceEnabled = false;
+      urAccepted = -1;
+    };
+    gui = {
+      user = config.user-vars.user;
+      password = config.sops.secrets.password.path;
+      theme = "black";
+    };
+
+#+end_src
+
+** Ollama
+
+#+begin_src nix :tangle modules/nixos/ollama.nix
+{
+  ollama,
+  fetchFromGitHub,
+  acceleration ? null,
+  rocmPackages, # Adăugat pentru acces la biblioteci
+  ...
+}:
+# Folosim override pentru a schimba argumentele de construcție
+(ollama.override { inherit acceleration; }).overrideAttrs (oldAttrs: rec {
+  pname = "ollama";
+  version = "0.23.2";
+
+  src = fetchFromGitHub {
+    owner = "ollama";
+    repo = "ollama";
+    rev = "v${version}";
+    hash = "sha256-4K1+GE96Uu5w1otSiP69vNDJ03tFvr78VluIEHMzFGQ=";
+  };
+  postPatch = "";
+  vendorHash = "sha256-Aj62Q+XvUp9MHBAYaYC6GLIP6Ut89bJHxAG7raRI0WA=";
+
+  # Forțăm includerea bibliotecilor ROCm în mediul de execuție al binarului
+  buildInputs = oldAttrs.buildInputs ++ (if acceleration == "rocm" then [
+    rocmPackages.clr
+    rocmPackages.hipblas
+    rocmPackages.rocblas
+  ] else []);
+})
+#+end_src
+
+** Strongswan
+
+- strongswan overlay:
+  #+begin_src nix :noweb-ref strongswan-overlay
+(final: prev: {
+  strongswan= prev.strongswan.overrideAttrs (old: {
+    configureFlags = old.configureFlags ++ ["--enable-bypass-lan"];
+  });
+})
+  #+end_src
+
+** Docker
+
+  #+begin_src nix :tangle modules/nixos/docker.nix :mkdirp yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-docker.enable = lib.mkEnableOption "Add docker";
+  };
+
+  config = lib.mkIf config.dpom-docker.enable {
+    # Enable common container config files in /etc/containers
+    virtualisation.containers.enable = true;
+    virtualisation = {
+      docker = {
+        enable = true;
+      };
+    };
+
+    # Useful other development tools
+    environment.systemPackages = with pkgs; [
+      dive # look into docker image layers
+      docker-compose # start group of containers for dev
+    ];
+  };
+}
+  #+end_src
+
+** Fonts
+
+#+begin_src nix :tangle modules/nixos/fonts.nix
+{ pkgs, ... }: {
+  fonts = {
+    fontconfig.enable = true;
+    enableDefaultPackages = true;
+
+    packages = with pkgs; [
+      aporetic
+      fira-code
+      fira-code-symbols
+      font-awesome
+      iosevka
+      julia-mono
+      liberation_ttf
+      nerd-fonts.inconsolata
+      nerd-fonts.iosevka-term
+      nerd-fonts.terminess-ttf
+      noto-fonts
+      noto-fonts-color-emoji
+      proggyfonts
+      source-code-pro
+    ];
+  };
+}
+#+end_src
+
+
+** Nvidia
+
+#+begin_src nix :tangle modules/nixos/nvidia.nix :mkdirp yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-nvidia.enable = lib.mkEnableOption "Add nvidia graphic card";
+  };
+
+  config = lib.mkIf config.dpom-nvidia.enable {
+    services.xserver.videoDrivers = [ "nvidia" ];
+    hardware.nvidia.open = true; # Set to false for proprietary drivers
+  };
+}
+  #+end_src
+
+** Greetd
+
+Login screen
+
+#+begin_src nix :tangle modules/nixos/greetd.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-greetd.enable = lib.mkEnableOption "Add greetd";
+  };
+
+  config = lib.mkIf config.dpom-greetd.enable {
+    services.greetd = {
+      enable = true;
+      settings = rec {
+        #   initial_session = {
+        #   command = "${pkgs.sway}/bin/sway";
+        #   user = "dan";
+        # };
+        # default_session = initial_session;
+        default_session.command = ''
+      ${pkgs.tuigreet}/bin/tuigreet \
+        --time \
+        --asterisks \
+        --user-menu \
+        --cmd sway
+    '';
+      };
+    };
+
+    environment.etc."greetd/environments".text = ''
+    sway
+  '';
+  };
+}
+#+end_src
+
+** Podman
+
+  #+begin_src nix :tangle modules/nixos/podman.nix :mkdirp yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-podman.enable = lib.mkEnableOption "Add podman";
+  };
+
+  config = lib.mkIf config.dpom-podman.enable {
+    # Enable common container config files in /etc/containers
+    virtualisation.containers.enable = true;
+    virtualisation = {
+      podman = {
+        enable = true;
+
+        # Create a `docker` alias for podman, to use it as a drop-in replacement
+        dockerCompat = true;
+
+        # Required for containers under podman-compose to be able to talk to each other.
+        defaultNetwork.settings.dns_enabled = true;
+      };
+    };
+
+    # Useful other development tools
+    environment.systemPackages = with pkgs; [
+      dive # look into docker image layers
+      podman-tui # status of containers in the terminal
+      docker-compose # start group of containers for dev
+      #podman-compose # start group of containers for dev
+    ];
+  };
+}
+  #+end_src
+
+
+
+** Solaar
+
+#+begin_src nix :tangle modules/nixos/solaar.nix
+{
+  config,
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  imports = [
+      inputs.solaar.nixosModules.default
+  ];
+
+  options = {
+    dpom-solaar.enable = lib.mkEnableOption "Add solaar service";
+  };
+
+  config = lib.mkIf config.dpom-solaar.enable {
+    services.solaar = {
+      enable = true; # Enable the service
+      package = pkgs.solaar; # The package to use
+      window = "hide"; # Show the window on startup (show, *hide*, only [window only])
+      batteryIcons = "regular"; # Which battery icons to use (*regular*, symbolic, solaar)
+      extraArgs = ""; # Extra arguments to pass to solaar on startup
+    };
+  };
+}
+#+end_src
+
+** Videorec
+
+#+begin_src nix :tangle modules/nixos/videorec.nix :mkdirp yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-videorec.enable = lib.mkEnableOption "Add videorecorder";
+  };
+
+  config = lib.mkIf config.dpom-videorec.enable {
+    programs.gpu-screen-recorder.enable = true; # For promptless recording on both CLI and GUI
+
+    environment.systemPackages = with pkgs; [
+        gpu-screen-recorder-gtk # GUI app
+    ];
+  };
+}
+  #+end_src
+
+** Mullad-VPN
+
+#+begin_src nix :tangle modules/nixos/vpn.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-vpn.enable = lib.mkEnableOption "Add vpn";
+  };
+
+  config = lib.mkIf config.dpom-vpn.enable {
+    # Activating the daemon service
+    services.mullvad-vpn.enable = true;
+    # Add the graphical interface package or CLI package
+    environment.systemPackages = [ pkgs.mullvad-vpn ];
+  };
+}
+
+#+end_src
+
+** Cdrom
+
+#+begin_src nix :tangle modules/nixos/cdrom.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-cdrom.enable = lib.mkEnableOption "Add cdrom";
+  };
+
+  config = lib.mkIf config.dpom-cdrom.enable {
+    users.groups.optical = {};
+
+    security.wrappers = {
+      cdrecord = {
+      owner = "root";
+      group = "optical";
+      # capabilities = "cap_sys_rawio,cap_ipc_lock=ep";
+      setuid = true;
+      source = "${pkgs.cdrtools}/bin/cdrecord";
+      };
+
+      cdrdao = {
+        owner = "root";
+        group = "optical";
+        setuid = true;
+        source = "${pkgs.cdrdao}/bin/cdrdao";
+      };
+    };
+
+    services.udev.extraRules = ''
+  SUBSYSTEM=="scsi_generic", GROUP="optical", MODE="0660"
+  SUBSYSTEM=="block", KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
+'';
+
+#     services.udev.extraRules = ''
+#   # Permite grupului optical să acceseze unitatea optică și interfața generică
+#   KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
+#   KERNEL=="sg[0-9]*", GROUP="optical", MODE="0660"
+# '';
+
+    environment.systemPackages = with pkgs; [
+      kdePackages.k3b
+      cdrtools # Offering CD-R discs
+      dvdplusrwtools # For DVDs
+      vcdimager
+      libburn   # An alternative modern K3b can use
+    ];
+  };
+}
+
+#+end_src
+
+** Proton
+
+#+begin_src nix :tangle modules/nixos/proton.nix :mkdirp yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-proton.enable = lib.mkEnableOption "Add proton";
+  };
+
+  config = lib.mkIf config.dpom-proton.enable {
+
+    environment.systemPackages = with pkgs; [
+      protonmail-bridge-gui # Mandatory bridge for Proton
+      protonvpn-gui
+    ];
+
+    # Activate GNOME Keyring for secure storage of credentials
+    services.gnome.gnome-keyring.enable = true;
+
+    # Activate DBus, essential for communication between the application and the keyring
+    services.dbus.enable = true;
+
+# Optional, but recommended if you're using a custom DM/WM (e.g., i3, Sway, Hyprland):
+    # Make sure the authentication agent starts automatically
+    security.polkit.enable = true;
+
+    # systemd.user.services.protonmail-bridge = {
+    #   description = "Proton Mail Bridge Daemon";
+    #   wantedBy = [ "graphical-session.target" ];
+    #   partOf = [ "graphical-session.target" ];
+    #   serviceConfig = {
+    #     ExecStart = "${pkgs.protonmail-bridge}/bin/protonmail-bridge --noninteractive";
+    #     Restart = "on-failure";
+    #   };
+    # };
+
+  };
+}
+  #+end_src
+
+** Hermes
+
+#+begin_src nix :tangle modules/nixos/hermes.nix :mkdirp yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-hermes.enable = lib.mkEnableOption "Add hermes";
+  };
+
+  config = lib.mkIf config.dpom-hermes.enable {
+
+    services.hermes-agent = {
+      enable = true;
+      config = {
+        model = {
+          default = "gemma4";
+          provider = "custom";
+          base_url = "http://127.0.0.1:11434/v1";
+        };
+        terminal.backend = "local";
+
+      };
+    };
+  };
+}
+  #+end_src
+
+** XServer
+
+#+begin_src nix :tangle modules/nixos/xserver.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-xserver.enable = lib.mkEnableOption "Add xserver";
+  };
+
+  config = lib.mkIf config.dpom-xserver.enable {
+    services.xserver = {
+      enable = true;
+      windowManager.i3 = {
+        enable = true;
+        extraPackages = with pkgs; [
+          i3status
+        ];
+      };
+      desktopManager = {
+        xterm.enable = false;
+      };
+      displayManager = {
+        lightdm.enable = true;
+      };
+      xkb = {
+        layout = "us";
+        options = "caps:swapescape";
+      };
+    };
+    console.useXkbConfig = true;
+  };
+}
+#+end_src
+
+
+* Home Modules
+** Common
+
+#+begin_src nix :tangle modules/home/default.nix :noweb yes
+{
+  config,
+  inputs,
+  lib,
+  outputs,
+  pkgs,
+  ...
+}:
+{
+  # Enable home-manager
+  programs.home-manager.enable = true;
+  fonts.fontconfig.enable = true;
+
+<<home-settings>>
+
+}
+#+end_src
+*** sops
+
+#+begin_src nix :noweb-ref home-settings
+# Declaring Specific Secrets
+sops.secrets = {
+  "github_personal_token" = {};
+  "email" = {};
+  "gpg_gripkey" = {};
+};
+
+#+end_src
+
+
+*** imports
+
+#+begin_src nix :noweb-ref home-settings
+  imports = [
+    inputs.stylix.homeModules.stylix
+    inputs.sops-nix.homeManagerModules.sops
+    ./stylix.nix
+    ./bash.nix
+    ./direnv.nix
+    ./dunst.nix
+    ./emacs
+    ./git.nix
+    ./hunspell.nix
+    ./i3.nix
+    ./kitty
+    ./office.nix
+    ./rofi.nix
+    ./sway.nix
+    ./swaync.nix
+    ./waybar.nix
+    ./kanshi.nix
+
+  ];
+#+end_src
+
+*** nix
+
+#+begin_src nix :noweb-ref home-settings
+  nix = {
+    package = lib.mkDefault pkgs.nix;
+    settings = {
+      experimental-features = [
+        "nix-command"
+        "flakes"
+        "ca-derivations"
+      ];
+      warn-dirty = false;
+      access-tokens = "github.com=" + config.sops.secrets.github_personal_token.path;
+    };
+  };
+#+end_src
+
+*** user
+
+#+begin_src nix :noweb-ref home-settings
+  home = rec {
+    username = config.user-vars.user;
+    homeDirectory = "/home/"+username;
+    sessionPath = [
+      "$HOME/.local/bin"
+    ];
+    # sessionVariables = {
+    #   EDITOR = "emacsclient";
+    #   GTAGSLABEL = "pygments";
+    #   LOCALE_ARCHIVE = "/usr/lib/locale/locale-archive";
+    #   TERMINAL = "kitty";
+    # };
+  };
+  systemd.user.sessionVariables = {
+      SSH_AUTH_SOCK = "/run/user/1000/keyring/ssh";
+  };
+
+
+#+end_src
+
+*** ssh
+
+#+begin_src nix :noweb-ref home-settings
+programs.ssh = {
+  enable = true;
+  enableDefaultConfig = false;
+  matchBlocks = {
+    "remarkable" = {
+      addKeysToAgent = "yes";
+      identityFile = "~/.ssh/remarkable2";
+    };
+    "10.11.99.1" = {
+      addKeysToAgent = "yes";
+      identityFile = "~/.ssh/remarkable2";
+    };
+    "*" = {
+      forwardAgent = false;
+      compression = false;
+      serverAliveInterval = 0;
+      serverAliveCountMax = 3;
+      hashKnownHosts = false;
+      userKnownHostsFile = "~/.ssh/known_hosts";
+      controlMaster = "no";
+      controlPath = "~/.ssh/master-%r@%n:%p";
+      controlPersist = "no";
+      addKeysToAgent = "yes";
+      identityFile = "~/.ssh/id_ed25519";
+    };
+  };
+};
+
+programs.keychain = {
+  enable = true;
+  keys = [ "id_ed25519" ];
+};
+
+#+end_src
+
+*** gnupg
+
+#+begin_src nix :noweb-ref home-settings
+services.ssh-agent.enable = true;
+
+    services = {
+      ## Enable gpg-agent with ssh support
+      gpg-agent = {
+        enable = true;
+        enableSshSupport = true;
+        pinentry.package = pkgs.pinentry-gnome3;
+        defaultCacheTtl = 28800;   # 8 ore (parola e reținută 8 ore de la ultima utilizare)
+        maxCacheTtl = 86400;       # 24 ore maxim
+        # pinentry is a collection of simple PIN or passphrase dialogs used for
+        # password entry
+    #     pinentry.package = pkgs.pinentry-emacs;
+    #     extraConfig = ''
+    #   # pinentry-program ${pkgs.pinentry-emacs}/bin/pinentry-curses
+    #   allow-emacs-pinentry
+    #   allow-loopback-pinentry
+    #   # Set the cache timeout (in seconds)
+    #   # 3600 seconds = 1 hour
+    #   default-cache-ttl 3600
+    #   max-cache-ttl 7200
+    # '';
+      };
+
+      ## We will put our keygrip here
+      gpg-agent.sshKeys = [
+
+      ];
+    };
+
+    programs = {
+      # Gui for OpenPGP
+      gpg = {
+        ## Enable GnuPG
+        enable = true;
+        # publicKeys = [ { source = ./.gnupg/privkey.asc; trust = 5; }];
+
+        # homedir = "/home/userName/.config/gnupg";
+        settings = {
+          # Default/trusted key ID (helpful with throw-keyids)
+          # Example, you will put your own keyid here
+          # Use `gpg --list-keys`
+          default-key = config.sops.secrets.gpg_gripkey.path;
+          trusted-key = config.sops.secrets.gpg_gripkey.path;
+
+          # https://github.com/drduh/config/blob/master/gpg.conf
+          # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html
+          # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
+          # Some Best Practices, stronger algos etc
+          # Use AES256, 192, or 128 as cipher
+          personal-cipher-preferences = "AES256 AES192 AES";
+          # Use SHA512, 384, or 256 as digest
+          personal-digest-preferences = "SHA512 SHA384 SHA256";
+          # Use ZLIB, BZIP2, ZIP, or no compression
+          personal-compress-preferences = "ZLIB BZIP2 ZIP Uncompressed";
+          # Default preferences for new keys
+          default-preference-list = "SHA512 SHA384 SHA256 AES256 AES192 AES ZLIB BZIP2 ZIP Uncompressed";
+          # SHA512 as digest to sign keys
+          cert-digest-algo = "SHA512";
+          # SHA512 as digest for symmetric ops
+          s2k-digest-algo = "SHA512";
+          # AES256 as cipher for symmetric ops
+          s2k-cipher-algo = "AES256";
+          # UTF-8 support for compatibility
+          charset = "utf-8";
+          # Show Unix timestamps
+          fixed-list-mode = "";
+          # No comments in signature
+          no-comments = "";
+          # No version in signature
+          no-emit-version = "";
+          # Disable banner
+          no-greeting = "";
+          # Long hexidecimal key format
+          keyid-format = "0xlong";
+          # Display UID validity
+          list-options = "show-uid-validity";
+          verify-options = "show-uid-validity";
+          # Display all keys and their fingerprints
+          with-fingerprint = "";
+          # Cross-certify subkeys are present and valid
+          require-cross-certification = "";
+          # Disable caching of passphrase for symmetrical ops
+          no-symkey-cache = "";
+          keyserver =  "hkp://keys.gnupg.net";
+          use-agent = true;
+          pinentry-mode = "loopback";
+
+        };
+      };
+    };
+
+#+end_src
+
+*** packages
+
+
+#+begin_src nix :noweb-ref home-settings
+home.packages = with pkgs; [
+  git
+  gnupg
+  haskellPackages.greenclip
+  imagemagick
+  lzip
+  mission-center
+  networkmanager-openvpn
+  networkmanagerapplet
+  openvpn
+  pasystray
+  sshpass
+];
+#+end_src
+
+*** services
+
+#+begin_src nix :noweb-ref home-settings
+  # Nicely reload system units when changing configs
+  systemd.user.startServices = "sd-switch";
+
+  services = {
+    blueman-applet.enable = true;
+    udiskie = {
+      enable = true;
+      automount = true;
+      tray = "always";
+    };
+    network-manager-applet.enable = true;
+  };
+
+#+end_src
+
+*** xdg
+
+#+begin_src nix :noweb-ref home-settings
+xdg = {
+  enable = true;
+  userDirs = {
+    enable = true;
+    createDirectories = true;
+    music = "${config.home.homeDirectory}/Media/Music";
+    videos = "${config.home.homeDirectory}/Media/Videos";
+    pictures = "${config.home.homeDirectory}/Media/Pictures";
+    templates = "${config.home.homeDirectory}/Templates";
+    download = "${config.home.homeDirectory}/Downloads";
+    documents = "${config.home.homeDirectory}/Documents";
+    desktop = null;
+    publicShare = null;
+    extraConfig = {
+      XDG_DOTFILES_DIR = "${config.home.homeDirectory}/.dotfiles";
+      XDG_PERS_DIR = "${config.home.homeDirectory}/pers";
+      XDG_WORK_DIR = "${config.home.homeDirectory}/work";
+    };
+  };
+  mime.enable = true;
+  mimeApps = {
+    enable = true;
+    defaultApplications = {
+      "text/html" = "google-chrome.desktop";
+      "x-scheme-handler/http" = "google-chrome.desktop";
+      "x-scheme-handler/https" = "google-chrome.desktop";
+      "x-scheme-handler/about" = "google-chrome.desktop";
+      "x-scheme-handler/unknown" = "google-chrome.desktop";
+    };
+    associations.added = {
+      "image/svg+xml" = "google-chrome.desktop";
+    };
+  };
+};
+#+end_src
+
+*** files
+
+#+begin_src nix :noweb-ref home-settings
+  home.file."./casa.jpg" = {
+    source = ./casa.jpg;
+  };
+
+#+end_src
+
+*** password
+
+#+begin_src nix :noweb-ref home-settings
+programs.password-store = {
+  enable = true;
+  package = pkgs.pass.withExtensions (exts: [
+    exts.pass-otp
+    exts.pass-import
+    exts.pass-update
+  ]);
+};
+
+programs.browserpass = {
+  enable = true;
+  browsers = [
+    "chrome"
+    "firefox"
+    "brave"
+  ];
+};
+#+end_src
+
+
+
+** Bash
+
+#+begin_src nix :tangle modules/home/bash.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-bash.enable = lib.mkEnableOption "Add bash";
+  };
+
+  config = lib.mkIf config.dpom-bash.enable {
+    home.packages = (
+      with pkgs;
+      [
+        jump
+        neovim
+      ]
+    );
+
+    programs.bash = {
+      enable = true;
+      enableCompletion = true;
+      initExtra = ''
+        eval "$(jump shell)"
+
+        export EDITOR=emacsclient
+        export GTAGSLABEL=pygments
+        export LOCALE_ARCHIVE=/usr/lib/locale/locale-archive
+        export TERMINAL=kitty
+        export GPG_TTY=$(tty)
+        # export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+        export SSH_AUTH_SOCK="/run/user/1000/ssh-agent";
+        export ALTERNATE_EDITOR=""
+      '';
+    };
+    home.file.".local/bin/caps2esc" = {
+      text = ''
+        setxkbmap -option caps:swapescape
+      '';
+      executable = true;
+    };
+
+    home.file.".local/bin/mynixrun" = {
+      text = ''
+        #!/usr/bin/env bash
+
+        nix run /home/dan/pers/projects/mynixpkgs#''$1
+      '';
+      executable = true;
+    };
+
+    home.file.".local/bin/mynixinit" = {
+      text = ''
+        #!/usr/bin/env bash
+
+        nix flake init -t /home/dan/pers/projects/mynixpkgs#''$1
+      '';
+      executable = true;
+    };
+
+  };
+}
+#+end_src
+
+** Direnv
+
+#+begin_src nix :tangle modules/home/direnv.nix
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
+{
+  options = {
+    dpom-direnv.enable = lib.mkEnableOption "Add direnv";
+  };
+  config = lib.mkIf config.dpom-direnv.enable {
+    programs.direnv = {
+      enable = true;
+      enableBashIntegration = true;
+      nix-direnv = {
+        enable = true;
+        # Until https://github.com/nix-community/home-manager/pull/5773
+        package = lib.mkIf (config.nix.package != null) (
+          pkgs.nix-direnv.override { nix = config.nix.package; }
+        );
+      };
+      config.global = {
+        hide_env_diff = true;
+      };
+    };
+  };
+}
+#+end_src
+
+** Dunst
+
+#+begin_src nix :tangle modules/home/dunst.nix
+{ config, pkgs, lib, ... }:
+{
+  options = {
+    dpom-dunst.enable = lib.mkEnableOption "Add dunst";
+  };
+  config = lib.mkIf config.dpom-dunst.enable {
+    home.packages = [
+      pkgs.libnotify
+      pkgs.dunst
+    ];
+    services = {
+      dunst.enable = true;
+      dunst.settings = {
+        global = {
+          monitor = 0;
+
+          # The geometry of the window:
+          #   [{width}]x{height}[+/-{x}+/-{y}]
+          geometry = "500x10-10+50";
+
+          # font = "Iosevka Comfy 10";
+
+          # The spacing between lines.  If the height is smaller than the
+          # font height, it will get raised to the font height.
+          line_height = 0;
+
+          # The format of the message.  Possible variables are:
+          #   %a  appname
+          #   %s  summary
+          #   %b  body
+          #   %i  iconname (including its path)
+          #   %I  iconname (without its path)
+          #   %p  progress value if set ([  0%] to [100%]) or nothing
+          #   %n  progress value if set without any extra characters
+          #   %%  Literal %
+          # Markup is allowed
+          markup = "full";
+          format = "<b>%s</b>\n%b";
+          word_wrap = true;
+
+          # Alignment of message text.
+          # Possible values are "left", "center" and "right".
+          alignment = "left";
+
+          # Show age of message if message is older than show_age_threshold
+          # seconds.
+          # Set to -1 to disable.
+          show_age_threshold = 60;
+
+          # Ignore newlines '\n' in notifications.
+          ignore_newline = false;
+
+          # Stack together notifications with the same content
+          stack_duplicates = true;
+
+          # Hide the count of stacked notifications with the same content
+          hide_duplicate_count = false;
+
+          # Display indicators for URLs (U) and actions (A).
+          show_indicators = true;
+
+          # Show how many messages are currently hidden (because of geometry).
+          indicate_hidden = true;
+
+          # Shrink window if it's smaller than the width.  Will be ignored if
+          # width is 0.
+          shrink = false;
+
+          # The transparency of the window.  Range: [0; 100].
+          transparency = 10;
+
+          # The height of the entire notification.  If the height is smaller
+          # than the font height and padding combined, it will be raised
+          # to the font height and padding.
+          notification_height = 0;
+
+          # Draw a line of "separator_height" pixel height between two
+          # notifications.
+          # Set to 0 to disable.
+          separator_height = 1;
+          # separator_color = "frame";
+
+          # Padding between text and separator.
+          padding = 8;
+
+          # Horizontal padding.
+          horizontal_padding = 8;
+
+          # Defines width in pixels of frame around the notification window.
+          # Set to 0 to disable.
+          frame_width = 2;
+
+          # Defines color of the frame around the notification window.
+          frame_color = "#89AAEB";
+
+          # Sort messages by urgency.
+          sort = true;
+
+          # Don't remove messages, if the user is idle (no mouse or keyboard input)
+          # for longer than idle_threshold seconds.
+          idle_threshold = 120;
+
+          # Should a notification popped up from history be sticky or timeout
+          # as if it would normally do.
+          sticky_history = true;
+
+          # Maximum amount of notifications kept in history
+          history_length = 20;
+
+          mouse_left_click = "close_current";
+          mouse_middle_click = "do_action";
+          mouse_right_click = "close_all";
+
+          # Redisplay last message(s).
+          # On the US keyboard layout "grave" is normally above TAB and left
+          # of "1". Make sure this key actually exists on your keyboard layout,
+          # e.g. check output of 'xmodmap -pke'
+          history = "ctrl+grave";
+
+          # Context menu.
+          context = "ctrl+shift+period";
+        };
+
+        urgency_low = {
+          # background = "#222222";
+          # foreground = "#888888";
+          timeout = 10;
+        };
+
+        urgency_normal = {
+          # background = "#285577";
+          # foreground = "#ffffff";
+          timeout = 0;
+        };
+
+        urgency_critical = {
+          # background = lib.mkForce "#900000";
+          # foreground = lib.mkForce "#ffffff";
+          # frame_color = lib.mkForce "#ff0000";
+          timeout = 0;
+        };
+
+      };
+    };
+  };
+}
+#+end_src
+
+** Git
+
+#+begin_src nix :tangle modules/home/git.nix
+{
+  config,
+  pkgs,
+  ...
+}:
+{
+  home.packages = with pkgs; [
+    git-filter-repo
+  ];
+
+  programs.git = {
+    enable = true;
+    signing = {
+      key = "~/.ssh/id_ed25519.pub";
+      signByDefault = true;
+    };
+
+    settings = {
+      alias = {
+        co = "checkout";
+        ci = "commit";
+        cia = "commit --amend";
+        s = "status";
+        st = "status";
+        b = "branch";
+        # p = "pull --rebase";
+        pu = "push";
+      };
+      user = {
+        email = config.sops.secrets.email.path;
+        name = config.user-vars.name;
+        signingKey = "~/.ssh/id_ed25519.pub";
+      };
+      gpg.format = "ssh";
+      tag.gpgsign = true;
+      commit.gpgsign = true;
+      # Această setare este utilă pentru a evita erorile pe unele versiuni de Git
+      "gpg \"ssh\"" = {
+        program = "${pkgs.openssh}/bin/ssh-keygen";
+        allowedSignersFile = "~/.ssh/allowed-signatures";
+      };
+
+      init.defaultBranch = "master"; # Undo breakage due to https://srid.ca/luxury-belief
+      core.editor = "emacsclient";
+      #protocol.keybase.allow = "always";
+      pull.rebase = "false";
+      github.user = "dpom";
+    };
+    iniContent = {
+      # Branch with most recent change comes first
+      branch.sort = "-committerdate";
+      # Remember and auto-resolve merge conflicts
+      # https://git-scm.com/book/en/v2/Git-Tools-Rerere
+      rerere.enabled = true;
+    };
+    ignores = [ "*~" "*.swp" ];
+    lfs.enable = true;
+  };
+
+  programs.lazygit = {
+    enable = true;
+    settings = {
+      # This looks better with the kitty theme.
+      gui.theme = {
+        lightTheme = false;
+        activeBorderColor = [ "white" "bold" ];
+        inactiveBorderColor = [ "white" ];
+        selectedLineBgColor = [ "reverse" "white" ];
+      };
+    };
+  };
+}
+#+end_src
+
+** Hunspell
+
+#+begin_src nix :tangle modules/home/hunspell.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-hunspell.enable = lib.mkEnableOption "Add dictionaries";
+  };
+
+  config = lib.mkIf config.dpom-hunspell.enable {
+    home.packages = with pkgs; [
+      hunspell
+      hunspellDicts.en-gb-large
+      hunspellDicts.ro-ro
+    ];
+  };
+}
+#+end_src
+
+** i3
+
+#+begin_src nix :tangle modules/home/i3.nix :noweb yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  <<wm-config-let>>
+in
+{
+  options = {
+    dpom-i3.enable = lib.mkEnableOption "Add i3";
+  };
+
+  config = lib.mkIf config.dpom-i3.enable {
+    home.packages = (with pkgs; [
+      arandr
+      autorandr
+      blueman
+      dex
+      dmenu
+      feh
+      i3
+      i3status
+      light
+      maim
+      networkmanagerapplet
+      playerctl
+      pasystray
+      papirus-icon-theme
+      rofi-power-menu
+      xclip
+      xdotool
+      xsecurelock
+      xsel
+      xfce.thunar
+    ]);
+
+
+    xsession.windowManager.i3 = {
+      enable = true;
+      package = pkgs.i3;
+      config = rec {
+        <<wm-config-ui>>
+        terminal = "kitty";
+        keybindings =
+          let
+            modifier = "Mod4";
+          in lib.mkOptionDefault {
+            <<wm-config-keybindings>>
+            # Clipboard
+              "${modifier}+c" = "exec --no-startup-id ${pkgs.rofi}/bin/rofi -modi \"clipboard:${pkgs.haskellPackages.greenclip}/bin/greenclip print\" -show clipboard";
+
+            # Kill app
+            "${modifier}+Shift+q" = "kill";
+
+            # Screenshot
+            "Print" = "maim --format=png --window $(xdotool getactivewindow) \"$HOME/Pictures/$(date -u +'%Y%m%d-%H%M%SZ')-screenshot.png\"";
+
+            # Volume
+            "XF86AudioRaiseVolume" = "exec 'pactl set-sink-volume @DEFAULT_SINK@ +1%' && $refresh_i3status";
+            "XF86AudioLowerVolume" = "exec 'pactl set-sink-volume @DEFAULT_SINK@ -1%' && $refresh_i3status";
+            "XF86AudioMute" = "exec 'pactl set-sink-mute @DEFAULT_SINK@ toggle' && $refresh_i3status";
+          };
+        bars = [
+          {statusCommand = "${pkgs.i3status}/bin/i3status";
+           position = "bottom";
+           # trayOutput = "primary";
+           fonts = {
+             names = ["Aporetic" "DejaVu Sans Mono"];
+             style = "Bold";
+             size = 14.0;
+           };
+          }
+        ];
+        startup = [
+          <<i3-startup>>
+          {command = "${pkgs.networkmanagerapplet}/bin/nm-applet --indicator";
+           always = true;
+           notification = false; }
+          {command = "${pkgs.pasystray}/bin/pasystray";
+           always = true;
+           notification = false; }
+          {command = "${pkgs.blueman}/bin/blueman-applet";
+           always = true;
+           notification = false; }
+          {command = "exec autorandr -c";
+           always = true;
+           notification = false; }
+          {command = "${pkgs.haskellPackages.greenclip}/bin/greenclip daemon>/dev/null";
+           always = true;
+           notification = false; }
+          {command = "dex --autostart --environment i3";
+           always = true;
+           notification = false; }
+          {command = "${pkgs.feh}/bin/feh --bg-fill ~/casa.jpg";
+           always = true;
+           notification = false; }
+          {command = "emacs --init-directory ~/.config/emacs";
+           always = true; }
+        ];
+      };
+    };
+  };
+}
+#+end_src
+
+References
+
+1. https://johnduhamel.io/posts/2019-01-29-nixos-i3-setup.html
+2. https://blog.neerajadhav.in/how-to-install-i3-window-manager-on-nixos-a-step-by-step-guide
+3. https://nixos.wiki/wiki/I3
+
+** Kitty
+
+#+begin_src nix :tangle modules/home/kitty/default.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-kitty.enable = lib.mkEnableOption "Add kitty";
+  };
+  config = lib.mkIf config.dpom-kitty.enable {
+    programs.kitty = {
+      enable = true;
+      shellIntegration.enableBashIntegration = true;
+      extraConfig = ''
+        scrollback_pager ~/.config/kitty/pager.sh 'INPUT_LINE_NUMBER' 'CURSOR_LINE' 'CURSOR_COLUMN'
+        map f1 launch --type overlay --stdin-source=@screen_scrollback ~/.config/kitty/pager.sh
+      '';
+      keybindings = {
+        "kitty_mod+e" = "kitten hints"; # https://sw.kovidgoyal.net/kitty/kittens/hints/
+      };
+      settings = {
+        # https://github.com/kovidgoyal/kitty/issues/371#issuecomment-1095268494
+        mouse_map = "left click ungrabbed no-op";
+        # Ctrl+Shift+click to open URL.
+        confirm_os_window_close = "0";
+      };
+    };
+
+    home.file.".config/kitty/pager.sh" = {
+      source = ./pager.sh;
+      executable = true;
+    };
+  };
+
+}
+#+end_src
+
+** Office
+
+nix module for office:
+#+begin_src nix :tangle modules/home/office.nix
+{
+  config,
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-office.enable =lib.mkEnableOption "Add office programs";
+  };
+
+  config = lib.mkIf config.dpom-office.enable {
+    home.packages = with pkgs; [
+      audacity
+      brave
+      google-chrome
+      libreoffice
+      kdePackages.okular
+      slack
+      vlc
+      zoom-us
+    ];
+  };
+}
+#+end_src
+** Rofi
+
+#+begin_src nix :tangle modules/home/rofi.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-rofi.enable = lib.mkEnableOption "Add rofi";
+  };
+
+  config = lib.mkIf config.dpom-rofi.enable {
+    programs.rofi = {
+      enable = true;
+      plugins = with pkgs; [rofi-power-menu ];
+      font = lib.mkForce "Aporetic 16";
+      extraConfig = {
+        modi = "window,drun,ssh,combi";
+        combi-modi = "window,drun,ssh";
+        icon-theme = "Papirus";
+        theme-str = "window {width: 8em;} listview {lines: 6;}";
+      };
+    };
+  };
+}
+#+end_src
+
+#+begin_src nix :noweb-ref wm-config-keybindings
+  "${modifier}+Shift+e" = "exec ${pkgs.rofi}/bin/rofi -show p -modi p:${pkgs.rofi-power-menu}/bin/rofi-power-menu";
+  "${modifier}+d" = "exec ${pkgs.rofi}/bin/rofi -show-icons -show drun";
+#+end_src
+
+** Stylix
+
+#+begin_src nix :tangle ./modules/home/stylix.nix
+{ config, pkgs, ...}: {
+  stylix = {
+    enable = true;
+    polarity = "dark";
+
+    # image = config.lib.stylix.pixel "base0A";
+    image = ./casa.jpg;
+
+    base16Scheme = "${pkgs.base16-schemes}/share/themes/gruvbox-dark-medium.yaml";
+    # base16Scheme = "${pkgs.base16-schemes}/share/themes/zenburn.yaml";
+    # base16Scheme = {
+    #   base00 = "#222524";
+    #   base01 = "#ff7a5f";
+    #   base02 = "#7fc87f";
+    #   base03 = "#e0b02f";
+    #   base04 = "#78afff";
+    #   base05 = "#fa90ea";
+    #   base06 = "#7fcfdf";
+    #   base07 = "#cac89f";
+    #   base08 = "#5e6160";
+    #   base09 = "#ff7a5f";
+    #   base0A = "#7fc87f";
+    #   base0B = "#e0b02f";
+    #   base0C = "#78afff";
+    #   base0D = "#fa90ea";
+    #   base0E = "#7fcfdf";
+    #   base0F = "#eaf2ef";
+    # };
+    fonts = {
+      sizes.terminal = 14;
+      sizes.applications = 14;
+
+      monospace = {
+        package = pkgs.aporetic;
+        name = "Aporetic";
+      };
+      sansSerif = {
+        package = pkgs.dejavu_fonts;
+        name = "DejaVu Sans";
+      };
+      serif = config.stylix.fonts.sansSerif;
+      emoji = config.stylix.fonts.monospace;
+    };
+
+    cursor = {
+      package = pkgs.bibata-cursors;
+      name = "Bibata-Modern-Classic";
+      size = 20;
+    };
+  };
+}
+#+end_src
+
+
+
+
+
+
+** Waybar
+
+https://github.com/Alexays/Waybar/wiki/Configuration
+
+#+begin_src nix :tangle modules/home/waybar.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  # Script to find the correct path for any sensor name
+  findHwmon = pkgs.writeShellScriptBin "find-hwmon" ''
+    for d in /sys/class/hwmon/hwmon*; do
+      if [ "$(${pkgs.coreutils}/bin/cat $d/name)" = "$1" ]; then
+        echo "$d"
+        exit 0
+      fi
+    done
+    exit 1
+  '';
+in
+{
+  options = {
+    dpom-waybar.enable = lib.mkEnableOption "Add waybar";
+  };
+
+  config = lib.mkIf config.dpom-waybar.enable {
+    programs.waybar = {
+      enable = true;
+      settings = {
+        mainBar = {
+          layer = "top";
+          position = "bottom";
+          height = 30;
+          modules-left = ["sway/workspaces"];
+          modules-center = ["sway/window"];
+          modules-right = [
+            "custom/notification"
+            "cpu"
+            "memory"
+            "disk"
+            "battery"
+            "custom/cpu-temp"
+            "custom/fan"
+            "pulseaudio"
+            "tray"
+            "clock"];
+
+          "sway/workspaces" = {
+            disable-scroll = true;
+            all-outputs = true;
+            # format = "{number} {name} {icon}";
+            # format-icons = {
+            #   active = "";
+            #   # default = "";
+            # };
+          };
+
+          "tray" = {
+            spacing = 5;
+            show-passive-items = true;
+          };
+
+          "cpu" = {
+            format = "  {usage}%";
+            tooltip = false;
+          };
+
+          "memory" = {
+            format = "  {}%";
+          };
+
+          "disk" = {
+            interval = 30;
+            format = "  {percentage_used}%";
+            path = "/";
+          };
+
+          "battery" = {
+            states = {
+              warning = 30;
+              critical = 15;
+            };
+            format = "{icon}  {capacity}% ";
+            format-full = "{icon}  {capacity}%";
+            format-charging = " {capacity}%";
+            format-plugged = "  {capacity}%";
+            format-alt = "{icon}  {time}";
+            format-icons = ["" "" "" "" ""];
+          };
+
+          # "temperature" = {
+          #   hwmon-pathi-abs = "/sys/class/hwmon/hwmon$(find-hwmon cros_ec)";
+          #   input-filename = "temp4_input";
+          #   critical-threshold = 80;
+          #   format = "{icon} {temperatureC}°C";
+          #   format-icons = ["" "" ""];
+          # };
+
+          "custom/cpu-temp" = {
+            interval = 2;
+            format = " {}°C";
+            exec = pkgs.writeShellScript "get-temp" ''
+        # Find the specific temp input that has the label cpu@4c
+        LABEL_PATH=$(grep -l "cpu@4c" /sys/class/hwmon/hwmon*/temp*_label | head -n1)
+        if [ -n "$LABEL_PATH" ]; then
+            # Replace '_label' with '_input' to get the value
+            DATA_PATH=''${LABEL_PATH%_label}_input
+            RAW=$(cat "$DATA_PATH")
+            echo "$((RAW / 1000))"
+        else
+            echo "N/A"
+        fi
+    '';
+          };
+
+          "custom/fan" = {
+            format = " ✲ {} RPM";
+            interval = 5;
+            exec = pkgs.writeShellScript "get-fan-speed" ''
+          EC_PATH=$(${findHwmon}/bin/find-hwmon cros_ec)
+          if [ -d "$EC_PATH" ]; then
+            cat "$EC_PATH/fan1_input"
+          else
+            echo "0"
+          fi
+        '';
+            tooltip = false;
+          };
+
+          "pulseaudio" = {
+            format = "{icon}  {volume}% {format_source}";
+            format-bluetooth = "{icon}  {volume}%  {format_source}";
+            format-bluetooth-muted = "{icon}!  {format_source}";
+            format-muted = " {format_source}";
+            format-source = "  {volume}%";
+            format-source-muted = "";
+            format-icons = {
+              headphone = "";
+              hands-free = "";
+              headset = "";
+              phone = "";
+              portable = "";
+              car = "";
+              default = ["" "" ""];
+            };
+            on-click = "pavucontrol";
+          };
+
+          "custom/notification" = {
+            tooltip = false;
+            format = "{0} {icon}";
+            format-icons = {
+              notification = "<span foreground='red'><sup></sup></span>";
+              none = "";
+              dnd-notification = "<span foreground='red'><sup></sup></span>";
+              dnd-none = "";
+              inhibited-notification = "<span foreground='red'><sup></sup></span>";
+              inhibited-none = "";
+              dnd-inhibited-notification = "<span foreground='red'><sup></sup></span>";
+              dnd-inhibited-none = "";
+            };
+            return-type = "json";
+            exec-if = "which swaync-client";
+            exec = "swaync-client -swb";
+            on-click = "swaync-client -t -sw";
+            on-click-right = "swaync-client -d -sw";
+            escape = true;
+          };
+
+
+          "custom/hello-from-waybar" = {
+            format = "hello {}";
+            max-length = 40;
+            interval = "once";
+            exec = pkgs.writeShellScript "hello-from-waybar" ''
+        echo "from within waybar"
+      '';
+          };
+
+          "clock" = {
+            tooltip-format = "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>";
+            format-alt = "{:%Y-%m-%d %H:%M}";
+            calendar = {
+              mode = "year";
+              mode-mon-col = 3;
+              weeks-pos = "right";
+              on-scroll = 1;
+              format = {
+                months = "<span color='#ffead3'><b>{}</b></span>";
+                days = "<span color='#ecc6d9'>{}</span>";
+                weeks = "<span color='#99ffdd'>{}</span>";
+                weekdays = "<span color='#ffcc66'>{}</span>";
+                today = "<span color='#ffee99'><b><u>{}</u></b></span>";
+              };
+            };
+            actions = {
+              "on-click-right" = "mode";
+              "on-scroll-up" = "shift_up";
+              "on-scroll-down" = "shift_down";
+            };
+          };
+        };
+      };
+      style = ''
+#temperature.critical {
+  background-color: #E42022;
+}
+#custom-notification {
+  font-family: "NotoSansMono Nerd Font";
+}
+      '';
+    };
+  };
+}
+#+end_src
+
+*** References
+
+1. https://linuxconfig.org/how-to-install-configure-and-customize-waybar-on-linux
+
+** Kanshi
+
+#+begin_src nix :tangle modules/home/kanshi.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-kanshi.enable = lib.mkEnableOption "Add kanshi";
+  };
+
+  config = lib.mkIf config.dpom-kanshi.enable {
+    services.kanshi = {
+      enable = true;
+      settings = [
+        {
+          profile.name = "birou";
+          profile.outputs = [
+           {
+             criteria = "Lenovo Group Limited S24e-20 VNA9F53C";
+             position = "0,0";
+             scale = 1.0;
+             mode = "1920x1080@60.000Hz";
+           }
+           {
+             criteria = "eDP-1";
+             position = "1920,0";
+             scale = 2.0;
+             mode = "2256x1504@59.999Hz";
+           }
+          ];
+        }
+        {
+          profile.name = "camera elena";
+          profile.outputs = [
+           {
+             criteria = "Philips Consumer Electronics Company PHL 243V7 UK02036031825";
+             position = "0,0";
+             scale = 1.0;
+             mode = "1920x1080@60.000Hz";
+           }
+           {
+             criteria = "eDP-1";
+             position = "1920,0";
+             scale = 2.0;
+             mode = "2256x1504@59.999Hz";
+           }
+          ];
+        }
+        {
+          profile.name = "laptop";
+          profile.outputs = [
+            {
+              criteria = "eDP-1";
+              position = "0,0";
+              scale = 2.0;
+              mode = "2256x1504@59.999Hz";
+            }
+          ];
+        }
+      ];
+    };
+  };
+}
+#+end_src
+
+** Swaync
+
+sistem de notificare specific sway
+
+#+begin_src nix :tangle modules/home/swaync.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-swaync.enable = lib.mkEnableOption "Add swaync";
+  };
+  config = lib.mkIf config.dpom-swaync.enable {
+    services.swaync = {
+      enable = true;
+      settings = {
+        positionX = "right";
+        positionY = "top";
+        control-center-positionX = "none";
+        control-center-positionY = "none";
+        control-center-margin-top = 8;
+        control-center-margin-bottom = 8;
+        control-center-margin-right = 8;
+        control-center-margin-left = 8;
+        control-center-width = 500;
+        control-center-height = -1;
+        fit-to-screen = false;
+        layer-shell-cover-screen = true;
+
+        layer-shell = true;
+        layer = "overlay";
+        control-center-layer = "overlay";
+        cssPriority = "user";
+        notification-inline-replies = true;
+        notification-body-image-height = 100;
+        notification-body-image-width = 200;
+
+        timeout = 10;
+        timeout-low = 5;
+        timeout-critical = 0;
+        notification-window-width = 500;
+        keyboard-shortcuts = true;
+        image-visibility = "always";
+        transition-time = 200;
+        hide-on-clear = true;
+        hide-on-action = true;
+        script-fail-notify = true;
+
+        widgets = [
+        "inhibitors"
+          "dnd"
+          "mpris"
+          "notifications"
+        ];
+        widget-config = {
+          notifications = {
+            vexpand = false;
+          };
+          inhibitors = {
+            text = "Inhibitors";
+            button-text = "Clear All";
+            clear-all-button = true;
+          };
+          title = {
+            text = "Notifications";
+            clear-all-button = false;
+            button-text = "Clear All";
+          };
+          dnd = {
+            text = "Do Not Disturb";
+          };
+          label = {
+            max-lines = 5;
+            text = "Label Text";
+          };
+          mpris = {
+            autohide = true;
+          };
+        };
+      };
+    };
+  };
+}
+#+end_src
+
+
+
+
+** Window Manager Common Config
+*** workspaces and modifier
+
+#+begin_src nix :noweb-ref wm-config-let
+  ws1 = "1: emacs";
+  ws2 = "2: pers";
+  ws3 = "3: term";
+  ws4 = "4: work";
+  ws5 = "5";
+  ws6 = "6";
+  ws7 = "7";
+  ws8 = "8";
+  ws9 = "9";
+  ws0 = "0: admin";
+#+end_src
+
+*** UI
+
+#+begin_src nix :noweb-ref wm-config-ui
+window.border = 1;
+window.titlebar = false;
+
+assigns = {
+  "${ws1}" = [{ class = "Emacs"; }];
+  "${ws0}" = [{ class = "Slack"; }];
+};
+#+end_src
+
+*** Common Keybindings
+
+#+begin_src nix :noweb-ref wm-config-keybindings
+  "${modifier}+Shift+c" = "reload";
+  "${modifier}+Shift+r" = "restart";
+
+  # commands
+  "${modifier}+Return" = "exec kitty";
+  "${modifier}+f" = "exec ${pkgs.xfce.thunar}/bin/thunar";
+
+  # switch to workspace
+  "${modifier}+1" = "workspace number ${ws1}";
+  "${modifier}+2" = "workspace number ${ws2}";
+  "${modifier}+3" = "workspace number ${ws3}";
+  "${modifier}+4" = "workspace number ${ws4}";
+  "${modifier}+5" = "workspace number ${ws5}";
+  "${modifier}+6" = "workspace number ${ws6}";
+  "${modifier}+7" = "workspace number ${ws7}";
+  "${modifier}+8" = "workspace number ${ws8}";
+  "${modifier}+9" = "workspace number ${ws9}";
+  "${modifier}+0" = "workspace number ${ws0}";
+  # switch to workspace
+  "${modifier}+Shift+1" = "move container to workspace number ${ws1}";
+  "${modifier}+Shift+2" = "move container to workspace number ${ws2}";
+  "${modifier}+Shift+3" = "move container to workspace number ${ws3}";
+  "${modifier}+Shift+4" = "move container to workspace number ${ws4}";
+  "${modifier}+Shift+5" = "move container to workspace number ${ws5}";
+  "${modifier}+Shift+6" = "move container to workspace number ${ws6}";
+  "${modifier}+Shift+7" = "move container to workspace number ${ws7}";
+  "${modifier}+Shift+8" = "move container to workspace number ${ws8}";
+  "${modifier}+Shift+9" = "move container to workspace number ${ws9}";
+  "${modifier}+Shift+0" = "move container to workspace number ${ws0}";
+  # modify layout
+  "${modifier}+Shift+m" = "move workspace to output left";
+  "${modifier}+Shift+o" = "split h";
+  "${modifier}+Shift+v" = "split v";
+
+
+#+end_src
+
+**** References
+
+1. https://mark.stosberg.com/sway-keybindings/
+
+* Mixed Modules
+** sway
+*** nixos
+
+#+begin_src nix :tangle modules/nixos/sway.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-sway.enable = lib.mkEnableOption "Add sway service";
+  };
+
+  config = lib.mkIf config.dpom-sway.enable {
+    environment.systemPackages = with pkgs; [
+      mako # notification system developed by swaywm maintainer
+      shotman
+    ];
+
+    # enable sway window manager
+    programs.sway = {
+      enable = true;
+      wrapperFeatures.gtk = true;
+    };
+    programs.light.enable = true;
+    };
+  }
+#+end_src
+
+*** home
+- identify outputs:
+  #+begin_src shell
+swaymsg -t get_outputs
+  #+end_src
+
+#+begin_src nix :noweb yes :tangle modules/home/sway.nix
+{
+  inputs,
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+let
+  <<wm-config-let>>
+
+  lockCommand = pkgs.swaylock + /bin/swaylock;
+in
+{
+  options = {
+    dpom-sway.enable = lib.mkEnableOption "Add sway service";
+  };
+
+  config = lib.mkIf config.dpom-sway.enable {
+    home.packages = (with pkgs; [
+      dex
+      dmenu
+      grim
+      kanshi
+      light
+      maim
+      papirus-icon-theme
+      rofi-power-menu
+      shotman
+      slurp
+      swayr
+      # swaynotificationcenter
+      wdisplays
+      wf-recorder
+      wl-clipboard
+      wofi
+      xdotool
+      xfce.thunar
+      xsecurelock
+    ]);
+
+    <<swaylock>>
+    <<sway-config>>
+
+    services.clipman.enable = true;
+    wayland.windowManager.sway = {
+      enable = true;
+      systemd.enable = true;
+      config = rec {
+        terminal = "kitty";
+        <<wm-config-ui>>
+        modifier = "Mod4";
+        keybindings =
+          let
+            modifier = config.wayland.windowManager.sway.config.modifier;
+          in lib.mkOptionDefault {
+            <<wm-config-keybindings>>
+
+            # Cliboard
+            "${modifier}+c" = "exec clipman pick --tool=rofi --tool-args=\"-dmenu -p 'Clipboard' -i -l 10\"";
+
+            # Lock screen
+            "${modifier}+Ctrl+l" = "exec ${lockCommand}";
+
+            # Toggle control center
+            # "${modifier}+Shift+n" =  "exec swaync-client -t -sw";
+
+            # Screenshot
+            "Print" = "exec shotman -c output";
+            "Print+Shift" = "exec shotman -c region";
+            "Print+Shift+Ctrl" = "exec shotman -c window";
+
+            # Brightness
+            "XF86MonBrightnessDown" = "exec ${pkgs.light}/bin/light -U 10";
+            "XF86MonBrightnessUp" = "exec ${pkgs.light}/bin/light -A 10";
+
+            # Volume
+            "XF86AudioRaiseVolume" = "exec 'pactl set-sink-volume @DEFAULT_SINK@ +1%'";
+            "XF86AudioLowerVolume" = "exec 'pactl set-sink-volume @DEFAULT_SINK@ -1%'";
+            "XF86AudioMute" = "exec 'pactl set-sink-mute @DEFAULT_SINK@ toggle'";
+          };
+        startup = [
+          {
+            command = "swaync";
+            always = true;
+          }
+
+          {
+            command = "nm-applet --indicator";
+            always = true;
+          }
+          {
+            command = "${pkgs.waybar}/bin/waybar";
+            always = true;
+          }
+          {
+            command = "${pkgs.swayr}/bin/swayrd";
+            always = true;
+          }
+          {
+            command = "${pkgs.swaynotificationcenter}/bin/swaync";
+            always = true;
+          }
+          {
+            # Start Polkit agent for elevation prompts
+            command = "/run/current-system/sw/libexec/polkit-gnome-authentication-agent-1";
+            always = true;
+          }
+          {
+            command = "dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=sway";
+            always = true;
+          }
+          {
+            # command = "~/.nix-profile/bin/emacs --init-directory ~/.config/emacs";
+            # command = "emacsclient -c -a \"\"";
+            command = "emacs --init-directory ~/.config/emacs";
+            always = true;
+          }
+        ];
+        bars = [];
+        input = {
+          "*" =  { xkb_options = "caps:swapescape"; };
+        };
+      };
+      extraConfig = ''
+    # give sway a little time to startup before starting kanshi.
+    exec sleep 5; systemctl --user start kanshi.service
+
+    '';
+      extraSessionCommands = ''
+      export SDL_VIDEODRIVER=wayland
+      export QT_QPA_PLATFORM=wayland
+      export QT_WAYLAND_DISABLE_WINDOWDECORATION="1"
+      export _JAVA_AWT_WM_NONREPARENTING=1
+      export MOZ_ENABLE_WAYLAND=1
+    '';
+    };
+  };
+}
+#+end_src
+
+**** swaylock
+#+begin_src nix :noweb-ref swaylock
+programs.swaylock = {
+  enable = true;
+  settings = {
+    daemonize = true;
+    show-keyboard-layout = true;
+    indicator-caps-lock = true;
+    indicator-radius = 200;
+  };
+};
+#+end_src
+
+**** swayr
+
+#+begin_src nix :noweb-ref swayr
+programs.swayr = {
+  enable = true;
+  # settings = {
+  #   menu = {
+  #     executable = "${pkgs.rofi}/bin/rofi";
+  #     args = [
+  #       "-dmenu"
+  #       "-markup-rows"
+  #       "-show-icons"
+  #       "-no-case-sensitive"
+  #       "-no-drun-use-desktop-cache"
+  #       "-l" "20"
+  #       "-p" "{prompt}"
+  #     ];
+  #   };
+
+  #   format = {
+  #     output_format = "{indent}<b>Output {name}</b> <span alpha='\"20000\"'>({id})</span>";
+  #     workspace_format = "{indent}<b>Workspace {name} [{layout}]</b> on output {output_name}    <span alpha='\"20000\"'>({id})</span>";
+  #     container_format = "{indent}<b>Container [{layout}]</b> <i>{marks}</i> on workspace {workspace_name}    <span alpha='\"20000\"'>({id})</span>";
+  #     window_format = "img:{app_icon}:text:{indent}<i>{app_name}</i> — {urgency_start}<b>“{title}”</b>{urgency_end} <i>{marks}</i> on workspace {workspace_name} / {output_name}    <span alpha='\"20000\"'>({id})</span>";
+  #     indent = "    ";
+  #     urgency_start = "<span background='\"darkred\"' foreground='\"yellow\"'>";
+  #     urgency_end = "</span>";
+  #     html_escape = true;
+  #   };
+
+  #   layout = {
+  #     auto_tile = false;
+  #     auto_tile_min_window_width_per_output_width = [
+  #       [ 800 400 ]
+  #       [ 1024 500 ]
+  #       [ 1280 600 ]
+  #       [ 1400 680 ]
+  #       [ 1440 700 ]
+  #       [ 1600 780 ]
+  #       [ 1680 780 ]
+  #       [ 1920 920 ]
+  #       [ 2048 980 ]
+  #       [ 2560 1000 ]
+  #       [ 3440 1200 ]
+  #       [ 3840 1280 ]
+  #       [ 4096 1400 ]
+  #       [ 4480 1600 ]
+  #       [ 7680 2400 ]
+  #     ];
+  #   };
+
+  #   focus = {
+  #     lockin_delay = 750;
+  #   };
+
+  #   misc = {
+  #     seq_inhibit = false;
+
+  # };
+};
+#+end_src
+** emacs
+*** nixos
+
+#+begin_src nix :tangle modules/nixos/emacs.nix
+{
+  lib,
+  pkgs,
+  ...
+}:
+{
+  fonts.packages = with pkgs; [
+    aporetic
+    emacsPackages.all-the-icons-nerd-fonts
+  ];
+}
+#+end_src
+
+*** home
+
+#+begin_src nix :tangle modules/home/emacs/default.nix :mkdirp yes
+{
+  inputs,
+  config,
+  pkgs,
+  ...
+}:
+{
+
+  home.packages = with pkgs; [
+    alejandra
+    aporetic
+    babashka
+    clj-kondo
+    clojure
+    clojure-lsp
+    cmake
+    docker
+    docker-buildx
+    docker-compose
+    fd
+    ffmpegthumbnailer
+    gcc
+    gh
+    ghostscript
+    gnumake
+    graphviz
+    imagemagick
+    just
+    libtool
+    libxml2
+    mediainfo
+    msmtp
+    neil
+    nixd
+    nixfmt-rfc-style
+    nodePackages.graphql-language-service-cli
+    nodejs_24
+    pandoc
+    plantuml
+    poppler
+    ripgrep
+    sops
+    source-code-pro
+    sqls
+    temurin-bin
+    texliveFull
+    tree-sitter
+    treefmt
+    unzip
+    uv
+    yaml-language-server
+    yq
+  ];
+
+  programs.emacs = {
+    enable = true;
+    package = (pkgs.emacs-pgtk.override {
+      withNativeCompilation = true;
+      withTreeSitter = true;
+    });
+  extraPackages = epkgs: [
+      epkgs.clojure-ts-mode
+      epkgs.erk
+      epkgs.mu4e
+      epkgs.pdf-tools
+      epkgs.treesit-grammars.with-all-grammars
+      epkgs.vterm
+    ];
+  };
+
+  # Daemon-ul Systemd pentru pornire instantanee
+  # services.emacs = {
+  #   enable = true;
+  #   defaultEditor = true;
+  #   # Această opțiune asigură că daemon-ul pornește după interfața grafică
+  #   startWithUserSession = "graphical";
+  #   package = config.programs.emacs.finalPackage; # Folosește exact pachetul de mai sus
+  # };
+
+
+  home.file.".config/emacs/early-init.el" = {
+    source = ./early-init.el;
+  };
+
+  home.file.".config/emacs/init.el" = {
+    source = ./init.el;
+  };
+
+  home.file.".config/emacs/templates/templates.eld" = {
+    source = ./templates/templates.eld;
+  };
+
+
+  home.file.".config/emacs/elisp" = {
+    source = ./elisp;
+    recursive = true;
+  };
+
+  home.file.".local/bin/emacs-dev" = {
+    text = ''
+#!/usr/bin/env bash
+
+cd ~/.dotfiles/pkgs/emacs
+
+nix run .#emacs-config -- --init-directory=.
+'';
+    executable = true;
+  };
+
+  home.file.".local/bin/emacs-local" = {
+    text = ''
+#!/usr/bin/env bash
+
+cd ~/.dotfiles/pkgs/emacs
+
+nix run .#emacs-config -- --init-directory=~/.config/emacs
+'';
+    executable = true;
+  };
+}
+#+end_src
+** email
+*** nixos
+
+#+begin_src nix :tangle modules/nixos/email.nix :mkdirp yes
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-email.enable = lib.mkEnableOption "Add email";
+  };
+
+  config = lib.mkIf config.dpom-email.enable {
+
+    environment.systemPackages = with pkgs; [
+      gnupg                 # For password management
+      isync                 # Provide the mbsync command
+      mu                    # Provide mu and mu4e
+      pandoc                # html2text
+    ];
+  };
+}
+  #+end_src
+
+*** home
+
+#+begin_src nix :noweb-ref home-settings
+programs.mu.enable = true;
+programs.msmtp.enable = true;
+
+#+end_src
