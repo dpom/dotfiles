@@ -239,18 +239,14 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   :config
   (customize-set-variable 'exec-path-from-shell-variables
                         '("PATH" "MANPATH" "DPOM_CONFIG"
-                          "LANG" "LC_ALL"
-                          "SSH_AGENT_PID"
+                          "LANG" "LC_ALL" "SSH_AUTH_SOCK"
                           "XDG_BIN_HOME"  "XDG_CACHE_HOME"
                           "XDG_CONFIG_HOME" "XDG_DATA_HOME"
                           "XDG_LIB_HOME"))
   (customize-set-variable 'exec-path-from-shell-check-startup-files nil)
-  (when (memq window-system '(mac ns x))
+  (when (memq window-system '(mac ns x pgtk))
     (exec-path-from-shell-initialize)
     (exec-path-from-shell-copy-envs '("SSH_AUTH_SOCK" "GPG_AGENT_INFO"))))
-
-;; Use the stable NixOS systemd path for the SSH agent
-;; (setenv "SSH_AUTH_SOCK" (format "/run/user/%d/ssh-agent" (user-real-uid)))
 
 #+end_src
 

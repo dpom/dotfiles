@@ -1513,8 +1513,8 @@ programs.ssh = {
 };
 
 programs.keychain = {
-  enable = true;
-  keys = [ "id_ed25519" ];
+  enable = false;
+  # keys = [ "id_ed25519" ];
 };
 
 #+end_src
@@ -1522,7 +1522,7 @@ programs.keychain = {
 *** gnupg
 
 #+begin_src nix :noweb-ref home-settings
-services.ssh-agent.enable = true;
+services.ssh-agent.enable = false;
 
     services = {
       ## Enable gpg-agent with ssh support
@@ -1531,25 +1531,11 @@ services.ssh-agent.enable = true;
         enableSshSupport = true;
         pinentry.package = pkgs.pinentry-gnome3;
         defaultCacheTtl = 28800;   # 8 ore (parola e reținută 8 ore de la ultima utilizare)
+        defaultCacheTtlSsh = 28800;
         maxCacheTtl = 86400;       # 24 ore maxim
-        # pinentry is a collection of simple PIN or passphrase dialogs used for
-        # password entry
-    #     pinentry.package = pkgs.pinentry-emacs;
-    #     extraConfig = ''
-    #   # pinentry-program ${pkgs.pinentry-emacs}/bin/pinentry-curses
-    #   allow-emacs-pinentry
-    #   allow-loopback-pinentry
-    #   # Set the cache timeout (in seconds)
-    #   # 3600 seconds = 1 hour
-    #   default-cache-ttl 3600
-    #   max-cache-ttl 7200
-    # '';
+        maxCacheTtlSsh = 86400;
       };
 
-      ## We will put our keygrip here
-      gpg-agent.sshKeys = [
-
-      ];
     };
 
     programs = {
@@ -1608,7 +1594,7 @@ services.ssh-agent.enable = true;
           no-symkey-cache = "";
           keyserver =  "hkp://keys.gnupg.net";
           use-agent = true;
-          pinentry-mode = "loopback";
+          # pinentry-mode = "loopback";
 
         };
       };
@@ -1758,9 +1744,15 @@ programs.browserpass = {
         export LOCALE_ARCHIVE=/usr/lib/locale/locale-archive
         export TERMINAL=kitty
         export GPG_TTY=$(tty)
-        # export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-        export SSH_AUTH_SOCK="/run/user/1000/ssh-agent";
+
+        export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
+        # export SSH_AUTH_SOCK="/run/user/1000/ssh-agent";
         export ALTERNATE_EDITOR=""
+
+        if [ -z "$SSH_TTY" ] && [ -S "$SSH_AUTH_SOCK" ]; then
+            # Încarcă cheia silențios doar dacă socket-ul este valid și disponibil
+            ssh-add ~/.ssh/id_ed25519 2>/dev/null
+        fi
       '';
     };
     home.file.".local/bin/caps2esc" = {

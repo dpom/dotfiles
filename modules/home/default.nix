@@ -101,11 +101,11 @@ programs.ssh = {
 };
 
 programs.keychain = {
-  enable = true;
-  keys = [ "id_ed25519" ];
+  enable = false;
+  # keys = [ "id_ed25519" ];
 };
 
-services.ssh-agent.enable = true;
+services.ssh-agent.enable = false;
 
     services = {
       ## Enable gpg-agent with ssh support
@@ -114,25 +114,11 @@ services.ssh-agent.enable = true;
         enableSshSupport = true;
         pinentry.package = pkgs.pinentry-gnome3;
         defaultCacheTtl = 28800;   # 8 ore (parola e reținută 8 ore de la ultima utilizare)
+        defaultCacheTtlSsh = 28800;
         maxCacheTtl = 86400;       # 24 ore maxim
-        # pinentry is a collection of simple PIN or passphrase dialogs used for
-        # password entry
-    #     pinentry.package = pkgs.pinentry-emacs;
-    #     extraConfig = ''
-    #   # pinentry-program ${pkgs.pinentry-emacs}/bin/pinentry-curses
-    #   allow-emacs-pinentry
-    #   allow-loopback-pinentry
-    #   # Set the cache timeout (in seconds)
-    #   # 3600 seconds = 1 hour
-    #   default-cache-ttl 3600
-    #   max-cache-ttl 7200
-    # '';
+        maxCacheTtlSsh = 86400;
       };
 
-      ## We will put our keygrip here
-      gpg-agent.sshKeys = [
-
-      ];
     };
 
     programs = {
@@ -191,7 +177,7 @@ services.ssh-agent.enable = true;
           no-symkey-cache = "";
           keyserver =  "hkp://keys.gnupg.net";
           use-agent = true;
-          pinentry-mode = "loopback";
+          # pinentry-mode = "loopback";
 
         };
       };
