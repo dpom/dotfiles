@@ -75,7 +75,7 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
 
 (defun local/get-secret (key)
   (with-temp-buffer
-    (insert-file-contents (expand-file-name key "/run/secrets/"))
+    (insert-file-contents (expand-file-name key "~/.config/sops-nix/secrets/"))
     (string-trim (buffer-string))))
 
 (use-package exec-path-from-shell
@@ -2427,6 +2427,22 @@ With a prefix (C-u), replace the selected region."
   (define-key pdf-view-mode-map (kbd "G") 'pdf-view-goto-page)
   (define-key pdf-view-mode-map (kbd "!") 'pdf-view-position-to-register)
   (define-key pdf-view-mode-map (kbd "@") 'pdf-view-jump-to-register))
+
+  (use-package elfeed
+    :ensure t
+    :demand t
+    :custom
+    (elfeed-db-directory
+     (expand-file-name "elfeed" emacs-cache-dir))
+     (elfeed-show-entry-switch 'display-buffer))
+
+  (use-package elfeed-org
+    :ensure t
+    :demand t
+    :config
+    (elfeed-org)
+    :custom
+    (rmh-elfeed-org-files (list (expand-file-name "elfeed.org" local/private-dir))))
 
 (use-package direnv
   :ensure t

@@ -14,9 +14,6 @@
     clojure
     clojure-lsp
     cmake
-    docker
-    docker-buildx
-    docker-compose
     fd
     ffmpegthumbnailer
     gcc

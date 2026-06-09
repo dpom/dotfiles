@@ -5,10 +5,6 @@
   pkgs,
   ...
 }:
-let
-  bob-host-id = config.sops.secrets.bob_host_id.path;
-  remarkable-host-id = config.sops.secrets.remarkable_host_id.path;
-in
 {
 
   imports = [
@@ -26,14 +22,14 @@ in
     # Enable networking
     networkmanager.enable = true;
     hosts = {
-      bob-host-id = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
-      remarkable-host-id = [ "remarkable"];
+      "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+      "192.168.0.110" = [ "remarkable"];
     };
     # Optional: Open the  ollama default port if you want to access it from other devices
     firewall.allowedTCPPorts = [ 11434 ];
   };
   
-  dpom-docker.enable = true;
+  # dpom-docker.enable = true;
   dpom-greetd.enable = true;
   dpom-solaar.enable = true;
   dpom-sway.enable = true;
@@ -109,9 +105,7 @@ in
       user = config.user-vars.user;
       group = "users";
       dataDir = config.user-vars.home;    # Default folder for new synced folders, instead of /var/lib/syncthing
-      configDir = "${config.user-vars.home}/.local/state/syncthing";   # Folder for Syncthing's settings and keys
-      overrideDevices = true; # Removes devices from Syncthing that are not configured here
-      overrideFolders = true; # Removes folders from Syncthing that are not configured here
+      configDir = "${config.user-vars.home}/.config/syncthing";   # Folder for Syncthing's settings and keys
     
   
     settings = {
@@ -119,16 +113,11 @@ in
             localAnnouceEnabled = false;
             urAccepted = -1;
           };
-          gui = {
-            user = config.user-vars.user;
-            password = config.sops.secrets.password.path;
-            theme = "black";
-          };
       
   
       devices = {
-        "bob" = { id = config.sops.secrets.bob_sync_id.path; };
-        "mike" = { id = config.sops.secrets.mike_sync_id.path; };
+        "bob" = { id = config.user-vars.bob-sync-id; };
+        "mike" = { id = config.user-vars.mike-sync-id; };
       };
   
       folders = lib.mapAttrs (name: value: {

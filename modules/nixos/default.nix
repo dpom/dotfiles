@@ -29,30 +29,7 @@
     "gpg_gripkey" = {
       owner = "${config.user-vars.user}";
     };
-    "bob_sync_id" = {
-      owner = "${config.user-vars.user}";
-    };
-    "mary_sync_id" = {
-      owner = "${config.user-vars.user}";
-    };
-    "mike_sync_id" = {
-      owner = "${config.user-vars.user}";
-    };
-    "fram_sync_id" = {
-      owner = "${config.user-vars.user}";
-    };
-    "gpg_ssh_key" = {
-      owner = "${config.user-vars.user}";
-    };
-    "private_dir" = {
-      owner = "${config.user-vars.user}";
-    };
-    "bob_host_id" = {
-      owner = "${config.user-vars.user}";
-    };
-    "remarkable_host_id" = {
-      owner = "${config.user-vars.user}";
-    };
+     "nix_access_token" = {};
   };
   
   imports = [
@@ -93,8 +70,11 @@
       experimental-features = "nix-command flakes ca-derivations";
       # Deduplicate and optimize nix store
       auto-optimise-store = true;
-      access-tokens = ["github=${config.sops.secrets.github_personal_token.path}"];
     };
+  
+    nix.extraOptions = ''
+      !include ${config.sops.secrets.nix_access_token.path}
+      '';
   
     # Set your time zone.
     time.timeZone = config.user-vars.timezone;

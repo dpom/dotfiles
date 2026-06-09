@@ -16,6 +16,8 @@ sops.secrets = {
   "github_personal_token" = {};
   "email" = {};
   "gpg_gripkey" = {};
+  "nix_access_token" = {};
+  "private_dir" = {};
 };
 
   imports = [
@@ -47,8 +49,10 @@ sops.secrets = {
         "ca-derivations"
       ];
       warn-dirty = false;
-      access-tokens = "github.com=" + config.sops.secrets.github_personal_token.path;
     };
+    extraOptions = ''
+  !include ${config.sops.secrets.nix_access_token.path}
+'';
   };
   home = rec {
     username = config.user-vars.user;

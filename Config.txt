@@ -189,6 +189,27 @@ pkgsFor = lib.genAttrs (import systems) (
         # default = /home/dan/.dotfiles;
         default = ./.;
       };
+      bob-sync-id = lib.mkOption {
+        type = lib.types.str;
+        description = "bob's syncthing id";
+        default = "7U5AU3H-PPPCFIK-MUHLV6M-56MFMBB-3GMHKZI-6FJXCO5-J3TGHMY-HWLVCQH";
+      };
+      mary-sync-id = lib.mkOption {
+        type = lib.types.str;
+        description = "mary's syncthing id";
+        default = "HLFAPO5-KHXLCMR-E25QP7O-NAI6FSJ-EWARVW4-6DLX65H-ERCEFQY-UUFO4QT";
+      };
+      mike-sync-id = lib.mkOption {
+        type = lib.types.str;
+        description = "mike's syncthing id";
+        default = "FOC2OQP-I5GV2OZ-BYYYZYR-7PKH3DH-RZLYQEC-YGC44JN-3DSHOX5-ZH2ZBA3";
+      };
+      fram-sync-id = lib.mkOption {
+        type = lib.types.str;
+        description = "fram's syncthing id";
+        default = "GQEWGND-7MINSXB-VXA6H5O-5J2XSOM-HLVGPUB-36YQGQX-VW4Q5CR-DE5YCQ6";
+      };
+
     };
   };
 }
@@ -239,10 +260,6 @@ mary = lib.nixosSystem {
   pkgs,
   ...
 }:
-let
-  bob-host-id = config.sops.secrets.bob_host_id.path;
-  remarkable-host-id = config.sops.secrets.remarkable_host_id.path;
-in
 {
 
   <<mary-nixos>>
@@ -280,8 +297,8 @@ networking = {
   # Enable networking
   networkmanager.enable = true;
   hosts = {
-    bob-host-id = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
-    remarkable-host-id = [ "remarkable"];
+    "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+    "192.168.0.110" = [ "remarkable"];
   };
   # Optional: Open the  ollama default port if you want to access it from other devices
   firewall.allowedTCPPorts = [ 11434 ];
@@ -292,7 +309,7 @@ networking = {
 **** modules
 
 #+begin_src nix :noweb-ref mary-nixos
-dpom-docker.enable = true;
+# dpom-docker.enable = true;
 dpom-greetd.enable = true;
 dpom-solaar.enable = true;
 dpom-sway.enable = true;
@@ -419,8 +436,8 @@ services.syncthing = {
     <<common-syncthing-service-settings>>
 
     devices = {
-      "bob" = { id = config.sops.secrets.bob_sync_id.path; };
-      "mike" = { id = config.sops.secrets.mike_sync_id.path; };
+      "bob" = { id = config.user-vars.bob-sync-id; };
+      "mike" = { id = config.user-vars.mike-sync-id; };
     };
 
     folders = lib.mapAttrs (name: value: {
@@ -610,30 +627,7 @@ sops.secrets = {
   "gpg_gripkey" = {
     owner = "${config.user-vars.user}";
   };
-  "bob_sync_id" = {
-    owner = "${config.user-vars.user}";
-  };
-  "mary_sync_id" = {
-    owner = "${config.user-vars.user}";
-  };
-  "mike_sync_id" = {
-    owner = "${config.user-vars.user}";
-  };
-  "fram_sync_id" = {
-    owner = "${config.user-vars.user}";
-  };
-  "gpg_ssh_key" = {
-    owner = "${config.user-vars.user}";
-  };
-  "private_dir" = {
-    owner = "${config.user-vars.user}";
-  };
-  "bob_host_id" = {
-    owner = "${config.user-vars.user}";
-  };
-  "remarkable_host_id" = {
-    owner = "${config.user-vars.user}";
-  };
+   "nix_access_token" = {};
 };
 
 #+end_src
@@ -684,8 +678,11 @@ imports = [
     experimental-features = "nix-command flakes ca-derivations";
     # Deduplicate and optimize nix store
     auto-optimise-store = true;
-    access-tokens = ["github=${config.sops.secrets.github_personal_token.path}"];
   };
+
+  nix.extraOptions = ''
+    !include ${config.sops.secrets.nix_access_token.path}
+    '';
 
 #+end_src
 
@@ -908,9 +905,7 @@ systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
   user = config.user-vars.user;
   group = "users";
   dataDir = config.user-vars.home;    # Default folder for new synced folders, instead of /var/lib/syncthing
-  configDir = "${config.user-vars.home}/.local/state/syncthing";   # Folder for Syncthing's settings and keys
-  overrideDevices = true; # Removes devices from Syncthing that are not configured here
-  overrideFolders = true; # Removes folders from Syncthing that are not configured here
+  configDir = "${config.user-vars.home}/.config/syncthing";   # Folder for Syncthing's settings and keys
 
 #+end_src
 
@@ -918,11 +913,6 @@ systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
     options = {
       localAnnouceEnabled = false;
       urAccepted = -1;
-    };
-    gui = {
-      user = config.user-vars.user;
-      password = config.sops.secrets.password.path;
-      theme = "black";
     };
 
 #+end_src
@@ -1389,7 +1379,6 @@ Login screen
 }
 #+end_src
 
-
 * Home Modules
 ** Common
 
@@ -1419,10 +1408,11 @@ sops.secrets = {
   "github_personal_token" = {};
   "email" = {};
   "gpg_gripkey" = {};
+  "nix_access_token" = {};
+  "private_dir" = {};
 };
 
 #+end_src
-
 
 *** imports
 
@@ -1461,8 +1451,10 @@ sops.secrets = {
         "ca-derivations"
       ];
       warn-dirty = false;
-      access-tokens = "github.com=" + config.sops.secrets.github_personal_token.path;
     };
+    extraOptions = ''
+  !include ${config.sops.secrets.nix_access_token.path}
+'';
   };
 #+end_src
 
@@ -1730,7 +1722,6 @@ programs.browserpass = {
   ];
 };
 #+end_src
-
 
 
 ** Bash
@@ -2362,7 +2353,6 @@ nix module for office:
   };
 }
 #+end_src
-
 
 
 
@@ -3112,9 +3102,6 @@ programs.swayr = {
     clojure
     clojure-lsp
     cmake
-    docker
-    docker-buildx
-    docker-compose
     fd
     ffmpegthumbnailer
     gcc

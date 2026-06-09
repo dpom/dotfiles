@@ -226,7 +226,7 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   #+begin_src emacs-lisp
 (defun local/get-secret (key)
   (with-temp-buffer
-    (insert-file-contents (expand-file-name key "/run/secrets/"))
+    (insert-file-contents (expand-file-name key "~/.config/sops-nix/secrets/"))
     (string-trim (buffer-string))))
   #+end_src
 
@@ -3557,7 +3557,7 @@ With a prefix (C-u), replace the selected region."
 *** RSS
 
 - elfeed:
-  #+begin_src emacs-lisp :tangle no
+  #+begin_src emacs-lisp
   (use-package elfeed
     :ensure t
     :demand t
@@ -3567,7 +3567,7 @@ With a prefix (C-u), replace the selected region."
      (elfeed-show-entry-switch 'display-buffer))
   #+end_src
 - Configure Elfeed with org mode
-  #+begin_src emacs-lisp :tangle no
+  #+begin_src emacs-lisp
   (use-package elfeed-org
     :ensure t
     :demand t
@@ -3577,6 +3577,7 @@ With a prefix (C-u), replace the selected region."
     (rmh-elfeed-org-files (list (expand-file-name "elfeed.org" local/private-dir))))
 
   #+end_src
+
 
 * Programming
 ** Implementation
