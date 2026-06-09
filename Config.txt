@@ -579,6 +579,276 @@ virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la 
   home.stateVersion = "25.11";
 }
 #+end_src
+** bob
+
+NixOS Configuration for bob  ()
+
+*** nixos
+
+#+begin_src nix :noweb-ref nixos-configs
+bob = lib.nixosSystem {
+  specialArgs = {
+    inherit inputs outputs;
+  };
+  modules = [
+    ./vars.nix
+    ./sops.nix
+    ./hosts/bob/nixos.nix
+  ];
+};
+#+end_src
+
+#+begin_src nix :tangle ./hosts/bob/nixos.nix :noweb yes
+{ inputs, config, lib, pkgs, ... }:
+{
+
+  <<bob-nixos>>
+
+  # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
+  system.stateVersion = "25.11";
+}
+#+end_src
+
+**** imports
+
+#+begin_src nix :noweb-ref bob-nixos
+imports = [
+  ./hardware-configuration.nix
+  ../../modules/nixos
+];
+#+end_src
+
+**** modules
+
+#+begin_src nix :noweb-ref bob-nixos
+dpom-solaar.enable = true;
+dpom-xserver.enable = true;
+dpom-cdrom.enable = true;
+dpom-proton.enable = true;
+#+end_src
+**** bootloader
+
+#+begin_src nix :noweb-ref bob-nixos
+  # Bootloader.
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+  # boot.loader.limine.maxGenerations = 10;
+#+end_src
+
+**** networking
+
+#+begin_src nix :noweb-ref bob-nixos
+  networking = {
+    hostName = "bob"; # Define your hostname.
+
+    # Enable networking
+    networkmanager.enable = true;
+    hosts = {
+      "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+      "192.168.i0.110" = [ "remarkable"];
+    };
+    # allow org-roam web ui
+    firewall.allowedTCPPorts = [ 35901 ];
+
+  };
+
+#+end_src
+**** git user
+
+#+begin_src nix :noweb-ref bob-nixos
+users.users.git = {
+  isNormalUser = true;
+  initialPassword = "git";
+};
+services.openssh.enable = true;
+#+end_src
+
+**** printer
+
+#+begin_src nix :noweb-ref bob-nixos
+services.avahi = {
+  enable = true;
+  nssmdns4 = true;
+  openFirewall = true;
+};
+
+# Enable CUPS to print documents.
+services.printing = {
+  enable = true;
+  drivers = with pkgs; [ samsung-unified-linux-driver ];
+  defaultShared = true;
+};
+
+hardware.sane = {
+  enable = true;
+  extraBackends = [ pkgs.samsung-unified-linux-driver  pkgs.samsung-unified-linux-driver_1_00_37 pkgs.hplipWithPlugin];
+};
+
+#+end_src
+**** syncthing
+
+#+begin_src nix :noweb-ref bob-nixos :noweb yes
+
+<<common-syncthing>>
+
+services.syncthing = {
+  <<common-syncthing-service>>
+
+  settings = {
+    <<common-syncthing-service-settings>>
+
+    devices = {
+      "mary" = { id = config.user-vars.mary-sync-id; };
+      "fram" = { id = config.user-vars.fram-sync-id; };
+      "mike" = { id = config.user-vars.mike-sync-id; };
+    };
+
+    folders = lib.mapAttrs (name: value: {
+      label = name;
+      path = "${config.user-vars.home}/${value.subPath}";
+      devices = [ "mary" ];
+    }) {
+      "sync" = {
+        subPath = "Sync";
+        devices = [ "mary" "fram" "mike" ];
+      };
+      "plan" = { subPath = "pers/plan"; };
+      "notes" = { subPath = "pers/notes"; };
+      "tutor" = { subPath = "pers/tutor"; };
+      "facturi" = { subPath = "pers/facturi"; };
+      "pfa" = { subPath = "pers/pfa"; };
+      "Maildir" = { subPath = "Maildir"; };
+      "work" = { subPath = "work"; };
+    };
+  };
+};
+
+#+end_src
+**** ollama
+
+#+begin_src nix :noweb-ref bob-nixos
+services.ollama = {
+  enable = true;
+  package = pkgs.callPackage ../../modules/nixos/ollama.nix {
+    inherit (pkgs) ollama;
+  };
+
+  loadModels = [
+    "gemma3:12b"
+  ];
+};
+programs.nix-ld.enable = true;
+#+end_src
+**** clipboard
+
+#+begin_src nix :noweb-ref bob-nixos
+services.greenclip.enable = true;
+#+end_src
+
+*** home
+
+#+begin_src nix :noweb-ref home-configs
+"dan@bob" = lib.homeManagerConfiguration {
+  pkgs = pkgsFor.x86_64-linux;
+  extraSpecialArgs = {
+    inherit inputs outputs;
+  };
+  modules = [
+    ./vars.nix
+    ./sops.nix
+    ./hosts/bob/home.nix
+  ];
+};
+
+#+end_src
+
+#+begin_src nix :tangle ./hosts/bob/home.nix
+{ inputs, config, lib, pkgs, outputs, ... }:
+{
+  imports = [
+    ../../modules/home
+  ];
+
+  # xsession.windowManager.command = "${pkgs.nixgl.auto.nixGLDefault}/bin/nixGL ${config.xsession.windowManager.i3.package}/bin/i3";
+  dpom-bash.enable = true;
+  dpom-direnv.enable = true;
+  dpom-dunst.enable = true;
+  dpom-hunspell.enable = true;
+  dpom-i3.enable = true;
+  dpom-kitty.enable = true;
+  dpom-office.enable = true;
+  dpom-rofi.enable = true;
+
+  home.packages = with pkgs; [
+    calibre
+    deluge
+    protonvpn-gui
+    scribus
+    simple-scan
+    system-config-printer
+  ];
+
+  systemd.user.targets.tray = {
+    Unit = {
+      Description = "Home Manager System Tray";
+      Requires = [ "graphical-session-pre.target" ];
+    };
+  };
+
+  xsession.windowManager.i3.config.terminal = "kitty";
+
+  home.file.".config/i3status/config" = {
+    source = ./i3status.config;
+  };
+
+  # https://nixos.wiki/wiki/FAQ/When_do_I_update_stateVersion
+  home.stateVersion = "25.11";
+}
+#+end_src
+
+**** i3status
+
+#+begin_src conf :tangle hosts/bob/i3status.config
+general {
+        colors = true
+        interval = 5
+        color_good = "#D5C4A1"
+        color_bad = "#83A598"
+        color_degraded = "#FB4934"
+}
+
+order += "cpu_usage"
+order += "memory"
+order += "load"
+order += "disk /"
+order += "tztime local"
+
+cpu_usage {
+       format = "cpu: %usage"
+}
+
+load {
+        format = "load: %1min"
+        # max_threshold = 0.3
+}
+
+disk "/" {
+        format = "hdd: %avail"
+}
+
+memory {
+        format = "mem: %used/%available"
+        threshold_degraded = "1G"
+        format_degraded = "MEMORY < %available"
+}
+
+tztime local {
+        format = "%Y-%m-%d %H:%M"
+        timezone = "Europe/Bucharest"
+}
+
+#+end_src
+
 
 * Nixos Modules
 ** Common
