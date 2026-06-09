@@ -82,17 +82,41 @@
             # nix-ld.nixosModules { programs.nix-ld.dev.enable = true; }
           ];
         };
+        bob = lib.nixosSystem {
+          specialArgs = {
+            inherit inputs outputs;
+          };
+          modules = [
+            ./vars.nix
+            ./sops.nix
+            ./hosts/bob/nixos.nix
+          ];
+        };
       };
       homeConfigurations = {
         "dan@mary" = lib.homeManagerConfiguration {
           pkgs = pkgsFor.x86_64-linux;
           extraSpecialArgs = {
             inherit inputs outputs;
+            emacsPackage = pkgsFor.x86_64-linux.emacs-pgtk;
           };
           modules = [
             ./vars.nix
             ./sops.nix
             ./hosts/mary/home.nix
+          ];
+        };
+        
+        "dan@bob" = lib.homeManagerConfiguration {
+          pkgs = pkgsFor.x86_64-linux;
+          extraSpecialArgs = {
+            inherit inputs outputs;
+            emacsPackage = pkgsFor.x86_64-linux.emacs;
+          };
+          modules = [
+            ./vars.nix
+            ./sops.nix
+            ./hosts/bob/home.nix
           ];
         };
         

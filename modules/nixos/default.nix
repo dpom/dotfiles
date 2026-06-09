@@ -34,6 +34,7 @@
   
   imports = [
     inputs.stylix.nixosModules.stylix
+    inputs.sops-nix.nixosModules.sops
     ./cdrom.nix
     ./docker.nix
     ./emacs.nix

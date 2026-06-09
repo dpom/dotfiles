@@ -539,6 +539,7 @@ virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la 
   pkgs = pkgsFor.x86_64-linux;
   extraSpecialArgs = {
     inherit inputs outputs;
+    emacsPackage = pkgsFor.x86_64-linux.emacs-pgtk;
   };
   modules = [
     ./vars.nix
@@ -551,7 +552,7 @@ virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la 
 
 
 #+begin_src nix :tangle ./hosts/mary/home.nix
-{ inputs, config, lib, pkgs, outputs, ... }:
+{ inputs, config, lib, pkgs, outputs, emacsPackage, ... }:
 {
   imports = [
     ../../modules/home
@@ -752,6 +753,7 @@ services.greenclip.enable = true;
   pkgs = pkgsFor.x86_64-linux;
   extraSpecialArgs = {
     inherit inputs outputs;
+    emacsPackage = pkgsFor.x86_64-linux.emacs;
   };
   modules = [
     ./vars.nix
@@ -849,7 +851,6 @@ tztime local {
 
 #+end_src
 
-
 * Nixos Modules
 ** Common
 
@@ -907,6 +908,7 @@ sops.secrets = {
 #+begin_src nix :noweb-ref nixos-common
 imports = [
   inputs.stylix.nixosModules.stylix
+  inputs.sops-nix.nixosModules.sops
   ./cdrom.nix
   ./docker.nix
   ./emacs.nix
@@ -1291,7 +1293,6 @@ systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
 }
 #+end_src
 
-
 ** Nvidia
 
 #+begin_src nix :tangle modules/nixos/nvidia.nix :mkdirp yes
@@ -1394,7 +1395,6 @@ Login screen
   };
 }
   #+end_src
-
 
 
 ** Solaar
@@ -1978,7 +1978,6 @@ programs.browserpass = {
   ];
 };
 #+end_src
-
 
 ** Bash
 
@@ -2619,7 +2618,6 @@ nix module for office:
 
 
 
-
 ** Waybar
 
 https://github.com/Alexays/Waybar/wiki/Configuration
@@ -3002,7 +3000,6 @@ sistem de notificare specific sway
 
 
 
-
 ** Window Manager Common Config
 *** workspaces and modifier
 
@@ -3352,6 +3349,7 @@ programs.swayr = {
   inputs,
   config,
   pkgs,
+  emacsPackage,
   ...
 }:
 {
@@ -3401,7 +3399,7 @@ programs.swayr = {
 
   programs.emacs = {
     enable = true;
-    package = (pkgs.emacs-pgtk.override {
+    package = (emacsPackage.override {
       withNativeCompilation = true;
       withTreeSitter = true;
     });
@@ -3414,16 +3412,6 @@ programs.swayr = {
       epkgs.vterm
     ];
   };
-
-  # Daemon-ul Systemd pentru pornire instantanee
-  # services.emacs = {
-  #   enable = true;
-  #   defaultEditor = true;
-  #   # Această opțiune asigură că daemon-ul pornește după interfața grafică
-  #   startWithUserSession = "graphical";
-  #   package = config.programs.emacs.finalPackage; # Folosește exact pachetul de mai sus
-  # };
-
 
   home.file.".config/emacs/early-init.el" = {
     source = ./early-init.el;

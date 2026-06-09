@@ -2,6 +2,7 @@
   inputs,
   config,
   pkgs,
+  emacsPackage,
   ...
 }:
 {
@@ -51,7 +52,7 @@
 
   programs.emacs = {
     enable = true;
-    package = (pkgs.emacs-pgtk.override {
+    package = (emacsPackage.override {
       withNativeCompilation = true;
       withTreeSitter = true;
     });
@@ -64,16 +65,6 @@
       epkgs.vterm
     ];
   };
-
-  # Daemon-ul Systemd pentru pornire instantanee
-  # services.emacs = {
-  #   enable = true;
-  #   defaultEditor = true;
-  #   # Această opțiune asigură că daemon-ul pornește după interfața grafică
-  #   startWithUserSession = "graphical";
-  #   package = config.programs.emacs.finalPackage; # Folosește exact pachetul de mai sus
-  # };
-
 
   home.file.".config/emacs/early-init.el" = {
     source = ./early-init.el;

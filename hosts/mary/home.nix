@@ -1,4 +1,4 @@
-{ inputs, config, lib, pkgs, outputs, ... }:
+{ inputs, config, lib, pkgs, outputs, emacsPackage, ... }:
 {
   imports = [
     ../../modules/home
