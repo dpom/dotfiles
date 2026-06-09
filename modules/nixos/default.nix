@@ -17,9 +17,6 @@
     "password" = {
       owner = "${config.user-vars.user}";
     };
-    "email" = {
-      owner = "${config.user-vars.user}";
-    };
     "github_api_token" = {
       owner = "${config.user-vars.user}";
     };

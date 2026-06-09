@@ -17,6 +17,12 @@
         description = "user name";
         default = "Dan Pomohaci";
       };
+      email = lib.mkOption {
+        type = lib.types.str;
+        description = "user email";
+        default = "dan.pomohaci@pm.me";
+      };
+
       home = lib.mkOption {
         type = lib.types.str;
         description = "user home";

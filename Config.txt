@@ -168,6 +168,12 @@ pkgsFor = lib.genAttrs (import systems) (
         description = "user name";
         default = "Dan Pomohaci";
       };
+      email = lib.mkOption {
+        type = lib.types.str;
+        description = "user email";
+        default = "dan.pomohaci@pm.me";
+      };
+
       home = lib.mkOption {
         type = lib.types.str;
         description = "user home";
@@ -884,9 +890,6 @@ nixpkgs = {
 # Declaring Specific Secrets
 sops.secrets = {
   "password" = {
-    owner = "${config.user-vars.user}";
-  };
-  "email" = {
     owner = "${config.user-vars.user}";
   };
   "github_api_token" = {
@@ -2268,7 +2271,7 @@ programs.browserpass = {
         pu = "push";
       };
       user = {
-        email = config.sops.secrets.email.path;
+        email = config.user-vars.email;
         name = config.user-vars.name;
         signingKey = "~/.ssh/id_ed25519.pub";
       };

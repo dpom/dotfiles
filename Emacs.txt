@@ -3574,7 +3574,6 @@ With a prefix (C-u), replace the selected region."
 
   #+end_src
 
-
 * Programming
 ** Implementation
 :PROPERTIES:

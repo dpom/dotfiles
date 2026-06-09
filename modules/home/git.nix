@@ -27,7 +27,7 @@
         pu = "push";
       };
       user = {
-        email = config.sops.secrets.email.path;
+        email = config.user-vars.email;
         name = config.user-vars.name;
         signingKey = "~/.ssh/id_ed25519.pub";
       };
