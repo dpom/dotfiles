@@ -215,6 +215,11 @@ pkgsFor = lib.genAttrs (import systems) (
         description = "fram's syncthing id";
         default = "GQEWGND-7MINSXB-VXA6H5O-5J2XSOM-HLVGPUB-36YQGQX-VW4Q5CR-DE5YCQ6";
       };
+      gpg-gripkey = lib.mkOption {
+        type = lib.types.str;
+        description = "personal gpg gripkey";
+        default = "0xA1103CEAC98B3B29";
+      };
 
     };
   };
@@ -574,6 +579,8 @@ virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la 
   dpom-sway.enable = true;
   dpom-waybar.enable = true;
   dpom-swaync.enable = true;
+  dpom-opencode.enable = true;
+  dpom-gemini.enable =true;
 
   systemd.user.targets.tray = {
     Unit = {
@@ -1680,7 +1687,6 @@ Login screen
 sops.secrets = {
   "github_personal_token" = {};
   "email" = {};
-  "gpg_gripkey" = {};
   "nix_access_token" = {};
   "private_dir" = {};
 };
@@ -1708,6 +1714,8 @@ sops.secrets = {
     ./swaync.nix
     ./waybar.nix
     ./kanshi.nix
+    ./gemini.nix
+    ./opencode.nix
 
   ];
 #+end_src
@@ -1823,8 +1831,8 @@ services.ssh-agent.enable = false;
           # Default/trusted key ID (helpful with throw-keyids)
           # Example, you will put your own keyid here
           # Use `gpg --list-keys`
-          default-key = config.sops.secrets.gpg_gripkey.path;
-          trusted-key = config.sops.secrets.gpg_gripkey.path;
+          default-key = config.user-vars.gpg-gripkey;
+          trusted-key = config.user-vars.gpg-gripkey;
 
           # https://github.com/drduh/config/blob/master/gpg.conf
           # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html
@@ -1868,7 +1876,6 @@ services.ssh-agent.enable = false;
           keyserver =  "hkp://keys.gnupg.net";
           use-agent = true;
           # pinentry-mode = "loopback";
-
         };
       };
     };
@@ -2620,7 +2627,6 @@ nix module for office:
 
 
 
-
 ** Waybar
 
 https://github.com/Alexays/Waybar/wiki/Configuration
@@ -3001,6 +3007,43 @@ sistem de notificare specific sway
 }
 #+end_src
 
+** Gemini
+
+#+begin_src nix :tangle modules/home/gemini.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-gemini.enable = lib.mkEnableOption "Add gemini cli";
+  };
+  config = lib.mkIf config.dpom-gemini.enable {
+    programs.gemini-cli.enable = true;
+  };
+}
+#+end_src
+
+** Opencode
+
+#+begin_src nix :tangle modules/home/opencode.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-opencode.enable = lib.mkEnableOption "Add opencode agent";
+  };
+  config = lib.mkIf config.dpom-opencode.enable {
+    programs.opencode.enable = true;
+  };
+}
+#+end_src
 
 
 ** Window Manager Common Config

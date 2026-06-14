@@ -14,6 +14,8 @@
   dpom-sway.enable = true;
   dpom-waybar.enable = true;
   dpom-swaync.enable = true;
+  dpom-opencode.enable = true;
+  dpom-gemini.enable =true;
 
   systemd.user.targets.tray = {
     Unit = {

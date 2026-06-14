@@ -15,7 +15,6 @@
 sops.secrets = {
   "github_personal_token" = {};
   "email" = {};
-  "gpg_gripkey" = {};
   "nix_access_token" = {};
   "private_dir" = {};
 };
@@ -38,6 +37,8 @@ sops.secrets = {
     ./swaync.nix
     ./waybar.nix
     ./kanshi.nix
+    ./gemini.nix
+    ./opencode.nix
 
   ];
   nix = {
@@ -133,8 +134,8 @@ services.ssh-agent.enable = false;
           # Default/trusted key ID (helpful with throw-keyids)
           # Example, you will put your own keyid here
           # Use `gpg --list-keys`
-          default-key = config.sops.secrets.gpg_gripkey.path;
-          trusted-key = config.sops.secrets.gpg_gripkey.path;
+          default-key = config.user-vars.gpg-gripkey;
+          trusted-key = config.user-vars.gpg-gripkey;
 
           # https://github.com/drduh/config/blob/master/gpg.conf
           # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html
@@ -178,7 +179,6 @@ services.ssh-agent.enable = false;
           keyserver =  "hkp://keys.gnupg.net";
           use-agent = true;
           # pinentry-mode = "loopback";
-
         };
       };
     };

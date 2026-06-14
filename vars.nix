@@ -64,6 +64,11 @@
         description = "fram's syncthing id";
         default = "GQEWGND-7MINSXB-VXA6H5O-5J2XSOM-HLVGPUB-36YQGQX-VW4Q5CR-DE5YCQ6";
       };
+      gpg-gripkey = lib.mkOption {
+        type = lib.types.str;
+        description = "personal gpg gripkey";
+        default = "0xA1103CEAC98B3B29";
+      };
 
     };
   };
