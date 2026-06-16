@@ -254,7 +254,6 @@ mary = lib.nixosSystem {
     inherit inputs outputs;
   };
   modules = [
-    sops-nix.nixosModules.sops
     ./vars.nix
     ./sops.nix
     ./hosts/mary/nixos.nix
@@ -896,22 +895,10 @@ nixpkgs = {
 #+begin_src nix :noweb-ref nixos-common
 # Declaring Specific Secrets
 sops.secrets = {
-  "password" = {
-    owner = "${config.user-vars.user}";
-  };
-  "github_api_token" = {
-    owner = "${config.user-vars.user}";
-  };
-  "github_personal_token" = {
-    owner = "${config.user-vars.user}";
-  };
-  "gpg_gripkey" = {
-    owner = "${config.user-vars.user}";
-  };
-   "nix_access_token" = {};
+  "nix_access_token" = {};
 };
 
-#+end_src
+  #+end_src
 
 *** imports
 
@@ -939,30 +926,30 @@ imports = [
 *** settings
 
 #+begin_src nix :noweb-ref nixos-common
-  # This will add each flake input as a registry
-  # To make nix3 commands consistent with your flake
-  nix.registry = lib.mapAttrs (_: value: { flake = value; }) inputs;
-  nix.nixPath = [ "nixpkgs=${inputs.nixpkgs}" ];
+# This will add each flake input as a registry
+# To make nix3 commands consistent with your flake
+nix.registry = lib.mapAttrs (_: value: { flake = value; }) inputs;
+nix.nixPath = [ "nixpkgs=${inputs.nixpkgs}" ];
 
-  # This will additionally add your inputs to the system's legacy channels
-  # Making legacy nix commands consistent as well, awesome!
-  # nix.nixPath = ["/etc/nix/path"];
-  environment.etc =
-    lib.mapAttrs'
+# This will additionally add your inputs to the system's legacy channels
+# Making legacy nix commands consistent as well, awesome!
+# nix.nixPath = ["/etc/nix/path"];
+environment.etc =
+  lib.mapAttrs'
     (name: value: {
       name = "nix/path/${name}";
       value.source = value.flake;
     })
     config.nix.registry;
 
-  nix.settings = {
-    # Enable flakes and new 'nix' command
-    experimental-features = "nix-command flakes ca-derivations";
-    # Deduplicate and optimize nix store
-    auto-optimise-store = true;
-  };
+nix.settings = {
+  # Enable flakes and new 'nix' command
+  experimental-features = "nix-command flakes ca-derivations";
+  # Deduplicate and optimize nix store
+  auto-optimise-store = true;
+};
 
-  nix.extraOptions = ''
+nix.extraOptions = ''
     !include ${config.sops.secrets.nix_access_token.path}
     '';
 
@@ -971,31 +958,31 @@ imports = [
 *** time zone and locale
 
 #+begin_src nix :noweb-ref nixos-common
-  # Set your time zone.
-  time.timeZone = config.user-vars.timezone;
+# Set your time zone.
+time.timeZone = config.user-vars.timezone;
 
-  # Select internationalisation properties.
-  i18n.defaultLocale = config.user-vars.locale;
+# Select internationalisation properties.
+i18n.defaultLocale = config.user-vars.locale;
 
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "ro_RO.UTF-8";
-    LC_IDENTIFICATION = "ro_RO.UTF-8";
-    LC_MEASUREMENT = "ro_RO.UTF-8";
-    LC_MONETARY = "ro_RO.UTF-8";
-    LC_NAME = "ro_RO.UTF-8";
-    LC_NUMERIC = "ro_RO.UTF-8";
-    LC_PAPER = "ro_RO.UTF-8";
-    LC_TELEPHONE = "ro_RO.UTF-8";
-    LC_TIME = "ro_RO.UTF-8";
-    LC_CTYPE="en_US.utf8"; # required by dmenu don't change this
-  };
+i18n.extraLocaleSettings = {
+  LC_ADDRESS = "ro_RO.UTF-8";
+  LC_IDENTIFICATION = "ro_RO.UTF-8";
+  LC_MEASUREMENT = "ro_RO.UTF-8";
+  LC_MONETARY = "ro_RO.UTF-8";
+  LC_NAME = "ro_RO.UTF-8";
+  LC_NUMERIC = "ro_RO.UTF-8";
+  LC_PAPER = "ro_RO.UTF-8";
+  LC_TELEPHONE = "ro_RO.UTF-8";
+  LC_TIME = "ro_RO.UTF-8";
+  LC_CTYPE="en_US.utf8"; # required by dmenu don't change this
+};
 
 #+end_src
 
 *** opnegl
 
 #+begin_src nix :noweb-ref nixos-common
- hardware.graphics.enable = true;
+hardware.graphics.enable = true;
 #+end_src
 
 *** services
@@ -1037,18 +1024,18 @@ security.pam.services.login.enableGnomeKeyring = true;
 *** programs
 
 #+begin_src nix :noweb-ref nixos-common
-  programs = {
-    thunar = {
-      enable = true;
-      plugins = with pkgs.xfce; [ thunar-archive-plugin thunar-volman ];
-    };
-    dconf.enable = true;
-    # This enables the system-wide agent service
-    ssh.startAgent = true;
+programs = {
+  thunar = {
+    enable = true;
+    plugins = with pkgs.xfce; [ thunar-archive-plugin thunar-volman ];
   };
+  dconf.enable = true;
+  # This enables the system-wide agent service
+  ssh.startAgent = true;
+};
 
-  # Force the environment variable to the stable systemd path
-  environment.extraInit = ''
+# Force the environment variable to the stable systemd path
+environment.extraInit = ''
   export SSH_AUTH_SOCK="/run/user/$(id -u)/ssh-agent"
 '';
 #+end_src
@@ -1056,38 +1043,38 @@ security.pam.services.login.enableGnomeKeyring = true;
 *** security
 
 #+begin_src nix :noweb-ref nixos-common
-  security = {
-    polkit.enable = true;
-    rtkit.enable = true;
-  };
-  # security.pam.services.lightdm.enable = true;
+security = {
+  polkit.enable = true;
+  rtkit.enable = true;
+};
+# security.pam.services.lightdm.enable = true;
 
-  # Activează un agent polkit (necesar pentru pop-up-uri de securitate)
-  systemd.user.services.polkit-gnome-authentication-agent-1 = {
-    description = "polkit-gnome-authentication-agent-1";
-    wantedBy = [ "graphical-session.target" ];
-    partOf = [ "graphical-session.target" ];
-    serviceConfig = {
-      ExecStart = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
-      Restart = "on-failure";
-      RestartSec = 1;
-      TimeoutStopSec = 10;
-    };
+# Activează un agent polkit (necesar pentru pop-up-uri de securitate)
+systemd.user.services.polkit-gnome-authentication-agent-1 = {
+  description = "polkit-gnome-authentication-agent-1";
+  wantedBy = [ "graphical-session.target" ];
+  partOf = [ "graphical-session.target" ];
+  serviceConfig = {
+    ExecStart = "${pkgs.polkit_gnome}/libexec/polkit-gnome-authentication-agent-1";
+    Restart = "on-failure";
+    RestartSec = 1;
+    TimeoutStopSec = 10;
   };
+};
 
 #+end_src
 
 *** systemd
 
 #+begin_src nix :noweb-ref nixos-common
-  systemd = {
-    sleep.extraConfig = ''
+systemd = {
+  sleep.extraConfig = ''
   AllowSuspend=yes
   AllowHibernation=yes
   AllowHybridSleep=yes
   AllowSuspendThenHibernate=yes
 '';
-  };
+};
 #+end_src
 
 *** bluetooth
@@ -1100,36 +1087,36 @@ services.blueman.enable = true;
 *** system packages
 
 #+begin_src nix :noweb-ref system-packages
-    acpi
-    age
-    git
-    htop
-    localsend
-    mc
-    nitrogen
-    nixd
-    openssh
-    pavucontrol
-    pasystray
-    picom
-    pulseaudioFull
-    udiskie
-    udisks
-    unrar
-    unzip
-    usbutils
-    syncthing
-    wget
-    xcalib
+acpi
+  age
+  git
+  htop
+  localsend
+  mc
+  nitrogen
+  nixd
+  openssh
+  pavucontrol
+  pasystray
+  picom
+  pulseaudioFull
+  udiskie
+  udisks
+  unrar
+  unzip
+  usbutils
+  syncthing
+  wget
+  xcalib
 #+end_src
 
 #+begin_src nix :noweb yes :noweb-ref nixos-common
-  environment.systemPackages = with pkgs; [
-    <<system-packages>>
-    home-manager
+environment.systemPackages = with pkgs; [
+  <<system-packages>>
+  home-manager
     pinentry-curses
     polkit_gnome
-  ];
+];
 
 #+end_src
 
@@ -1157,18 +1144,18 @@ users.users = {
 
 *** update and cleanup
 
-  #+begin_src nix :noweb-ref nixos-common
+#+begin_src nix :noweb-ref nixos-common
 system.autoUpgrade = {
   enable = true;
   dates = "weekly";
-  };
+};
 
 nix.gc = {
   automatic = true;
   dates = "daily";
   options = "--delete-older-than 30d";
 };
-  #+end_src
+#+end_src
 
 ** Syncthing
 
@@ -1182,20 +1169,20 @@ systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
 #+end_src
 
 #+begin_src nix :noweb-ref common-syncthing-service
-  enable = true;
-  openDefaultPorts = true;
-  user = config.user-vars.user;
-  group = "users";
-  dataDir = config.user-vars.home;    # Default folder for new synced folders, instead of /var/lib/syncthing
-  configDir = "${config.user-vars.home}/.config/syncthing";   # Folder for Syncthing's settings and keys
+enable = true;
+openDefaultPorts = true;
+user = config.user-vars.user;
+group = "users";
+dataDir = config.user-vars.home;    # Default folder for new synced folders, instead of /var/lib/syncthing
+configDir = "${config.user-vars.home}/.config/syncthing";   # Folder for Syncthing's settings and keys
 
 #+end_src
 
 #+begin_src nix :noweb-ref common-syncthing-service-settings
-    options = {
-      localAnnouceEnabled = false;
-      urAccepted = -1;
-    };
+options = {
+  localAnnouceEnabled = false;
+  urAccepted = -1;
+};
 
 #+end_src
 
@@ -1245,7 +1232,7 @@ systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
 
 ** Docker
 
-  #+begin_src nix :tangle modules/nixos/docker.nix :mkdirp yes
+#+begin_src nix :tangle modules/nixos/docker.nix :mkdirp yes
 {
   config,
   lib,
@@ -1273,7 +1260,7 @@ systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
     ];
   };
 }
-  #+end_src
+#+end_src
 
 ** Fonts
 
@@ -1322,7 +1309,7 @@ systemd.services.syncthing.environment.STNODEFAULTFOLDER = "true";
     hardware.nvidia.open = true; # Set to false for proprietary drivers
   };
 }
-  #+end_src
+#+end_src
 
 ** Greetd
 
@@ -1368,7 +1355,7 @@ Login screen
 
 ** Podman
 
-  #+begin_src nix :tangle modules/nixos/podman.nix :mkdirp yes
+#+begin_src nix :tangle modules/nixos/podman.nix :mkdirp yes
 {
   config,
   lib,
@@ -1404,7 +1391,7 @@ Login screen
     ];
   };
 }
-  #+end_src
+#+end_src
 
 
 ** Solaar
@@ -1419,7 +1406,7 @@ Login screen
 }:
 {
   imports = [
-      inputs.solaar.nixosModules.default
+    inputs.solaar.nixosModules.default
   ];
 
   options = {
@@ -1456,11 +1443,11 @@ Login screen
     programs.gpu-screen-recorder.enable = true; # For promptless recording on both CLI and GUI
 
     environment.systemPackages = with pkgs; [
-        gpu-screen-recorder-gtk # GUI app
+      gpu-screen-recorder-gtk # GUI app
     ];
   };
 }
-  #+end_src
+#+end_src
 
 ** Mullad-VPN
 
@@ -1505,11 +1492,11 @@ Login screen
 
     security.wrappers = {
       cdrecord = {
-      owner = "root";
-      group = "optical";
-      # capabilities = "cap_sys_rawio,cap_ipc_lock=ep";
-      setuid = true;
-      source = "${pkgs.cdrtools}/bin/cdrecord";
+        owner = "root";
+        group = "optical";
+        # capabilities = "cap_sys_rawio,cap_ipc_lock=ep";
+        setuid = true;
+        source = "${pkgs.cdrtools}/bin/cdrecord";
       };
 
       cdrdao = {
@@ -1525,11 +1512,11 @@ Login screen
   SUBSYSTEM=="block", KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
 '';
 
-#     services.udev.extraRules = ''
-#   # Permite grupului optical să acceseze unitatea optică și interfața generică
-#   KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
-#   KERNEL=="sg[0-9]*", GROUP="optical", MODE="0660"
-# '';
+    #     services.udev.extraRules = ''
+    #   # Permite grupului optical să acceseze unitatea optică și interfața generică
+    #   KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
+    #   KERNEL=="sg[0-9]*", GROUP="optical", MODE="0660"
+    # '';
 
     environment.systemPackages = with pkgs; [
       kdePackages.k3b
@@ -1570,7 +1557,7 @@ Login screen
     # Activate DBus, essential for communication between the application and the keyring
     services.dbus.enable = true;
 
-# Optional, but recommended if you're using a custom DM/WM (e.g., i3, Sway, Hyprland):
+    # Optional, but recommended if you're using a custom DM/WM (e.g., i3, Sway, Hyprland):
     # Make sure the authentication agent starts automatically
     security.polkit.enable = true;
 
@@ -1586,7 +1573,7 @@ Login screen
 
   };
 }
-  #+end_src
+#+end_src
 
 ** Hermes
 
@@ -1618,7 +1605,7 @@ Login screen
     };
   };
 }
-  #+end_src
+#+end_src
 
 ** XServer
 
@@ -1676,7 +1663,7 @@ Login screen
   programs.home-manager.enable = true;
   fonts.fontconfig.enable = true;
 
-<<home-settings>>
+  <<home-settings>>
 
 }
 #+end_src
@@ -1696,68 +1683,68 @@ sops.secrets = {
 *** imports
 
 #+begin_src nix :noweb-ref home-settings
-  imports = [
-    inputs.stylix.homeModules.stylix
-    inputs.sops-nix.homeManagerModules.sops
-    ./stylix.nix
-    ./bash.nix
-    ./direnv.nix
-    ./dunst.nix
-    ./emacs
-    ./git.nix
-    ./hunspell.nix
-    ./i3.nix
-    ./kitty
-    ./office.nix
-    ./rofi.nix
-    ./sway.nix
-    ./swaync.nix
-    ./waybar.nix
-    ./kanshi.nix
-    ./gemini.nix
-    ./opencode.nix
+imports = [
+  inputs.stylix.homeModules.stylix
+  inputs.sops-nix.homeManagerModules.sops
+  ./stylix.nix
+  ./bash.nix
+  ./direnv.nix
+  ./dunst.nix
+  ./emacs
+  ./git.nix
+  ./hunspell.nix
+  ./i3.nix
+  ./kitty
+  ./office.nix
+  ./rofi.nix
+  ./sway.nix
+  ./swaync.nix
+  ./waybar.nix
+  ./kanshi.nix
+  ./gemini.nix
+  ./opencode.nix
 
-  ];
+];
 #+end_src
 
 *** nix
 
 #+begin_src nix :noweb-ref home-settings
-  nix = {
-    package = lib.mkDefault pkgs.nix;
-    settings = {
-      experimental-features = [
-        "nix-command"
-        "flakes"
-        "ca-derivations"
-      ];
-      warn-dirty = false;
-    };
-    extraOptions = ''
+nix = {
+  package = lib.mkDefault pkgs.nix;
+  settings = {
+    experimental-features = [
+      "nix-command"
+      "flakes"
+      "ca-derivations"
+    ];
+    warn-dirty = false;
+  };
+  extraOptions = ''
   !include ${config.sops.secrets.nix_access_token.path}
-'';
+    '';
   };
 #+end_src
 
 *** user
 
 #+begin_src nix :noweb-ref home-settings
-  home = rec {
-    username = config.user-vars.user;
-    homeDirectory = "/home/"+username;
-    sessionPath = [
-      "$HOME/.local/bin"
-    ];
-    # sessionVariables = {
-    #   EDITOR = "emacsclient";
-    #   GTAGSLABEL = "pygments";
-    #   LOCALE_ARCHIVE = "/usr/lib/locale/locale-archive";
-    #   TERMINAL = "kitty";
-    # };
-  };
-  systemd.user.sessionVariables = {
-      SSH_AUTH_SOCK = "/run/user/1000/keyring/ssh";
-  };
+home = rec {
+  username = config.user-vars.user;
+  homeDirectory = "/home/"+username;
+  sessionPath = [
+    "$HOME/.local/bin"
+  ];
+  # sessionVariables = {
+  #   EDITOR = "emacsclient";
+  #   GTAGSLABEL = "pygments";
+  #   LOCALE_ARCHIVE = "/usr/lib/locale/locale-archive";
+  #   TERMINAL = "kitty";
+  # };
+};
+systemd.user.sessionVariables = {
+  SSH_AUTH_SOCK = "/run/user/1000/keyring/ssh";
+};
 
 
 #+end_src
@@ -1805,80 +1792,80 @@ programs.keychain = {
 #+begin_src nix :noweb-ref home-settings
 services.ssh-agent.enable = false;
 
-    services = {
-      ## Enable gpg-agent with ssh support
-      gpg-agent = {
-        enable = true;
-        enableSshSupport = true;
-        pinentry.package = pkgs.pinentry-gnome3;
-        defaultCacheTtl = 28800;   # 8 ore (parola e reținută 8 ore de la ultima utilizare)
-        defaultCacheTtlSsh = 28800;
-        maxCacheTtl = 86400;       # 24 ore maxim
-        maxCacheTtlSsh = 86400;
-      };
+services = {
+  ## Enable gpg-agent with ssh support
+  gpg-agent = {
+    enable = true;
+    enableSshSupport = true;
+    pinentry.package = pkgs.pinentry-gnome3;
+    defaultCacheTtl = 28800;   # 8 ore (parola e reținută 8 ore de la ultima utilizare)
+    defaultCacheTtlSsh = 28800;
+    maxCacheTtl = 86400;       # 24 ore maxim
+    maxCacheTtlSsh = 86400;
+  };
 
+};
+
+programs = {
+  # Gui for OpenPGP
+  gpg = {
+    ## Enable GnuPG
+    enable = true;
+    # publicKeys = [ { source = ./.gnupg/privkey.asc; trust = 5; }];
+
+    # homedir = "/home/userName/.config/gnupg";
+    settings = {
+      # Default/trusted key ID (helpful with throw-keyids)
+      # Example, you will put your own keyid here
+      # Use `gpg --list-keys`
+      default-key = config.user-vars.gpg-gripkey;
+      trusted-key = config.user-vars.gpg-gripkey;
+
+      # https://github.com/drduh/config/blob/master/gpg.conf
+      # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html
+      # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
+      # Some Best Practices, stronger algos etc
+      # Use AES256, 192, or 128 as cipher
+      personal-cipher-preferences = "AES256 AES192 AES";
+      # Use SHA512, 384, or 256 as digest
+      personal-digest-preferences = "SHA512 SHA384 SHA256";
+      # Use ZLIB, BZIP2, ZIP, or no compression
+      personal-compress-preferences = "ZLIB BZIP2 ZIP Uncompressed";
+      # Default preferences for new keys
+      default-preference-list = "SHA512 SHA384 SHA256 AES256 AES192 AES ZLIB BZIP2 ZIP Uncompressed";
+      # SHA512 as digest to sign keys
+      cert-digest-algo = "SHA512";
+      # SHA512 as digest for symmetric ops
+      s2k-digest-algo = "SHA512";
+      # AES256 as cipher for symmetric ops
+      s2k-cipher-algo = "AES256";
+      # UTF-8 support for compatibility
+      charset = "utf-8";
+      # Show Unix timestamps
+      fixed-list-mode = "";
+      # No comments in signature
+      no-comments = "";
+      # No version in signature
+      no-emit-version = "";
+      # Disable banner
+      no-greeting = "";
+      # Long hexidecimal key format
+      keyid-format = "0xlong";
+      # Display UID validity
+      list-options = "show-uid-validity";
+      verify-options = "show-uid-validity";
+      # Display all keys and their fingerprints
+      with-fingerprint = "";
+      # Cross-certify subkeys are present and valid
+      require-cross-certification = "";
+      # Disable caching of passphrase for symmetrical ops
+      no-symkey-cache = "";
+      keyserver =  "hkp://keys.gnupg.net";
+      use-agent = true;
+      # pinentry-mode = "loopback";
     };
-
-    programs = {
-      # Gui for OpenPGP
-      gpg = {
-        ## Enable GnuPG
-        enable = true;
-        # publicKeys = [ { source = ./.gnupg/privkey.asc; trust = 5; }];
-
-        # homedir = "/home/userName/.config/gnupg";
-        settings = {
-          # Default/trusted key ID (helpful with throw-keyids)
-          # Example, you will put your own keyid here
-          # Use `gpg --list-keys`
-          default-key = config.user-vars.gpg-gripkey;
-          trusted-key = config.user-vars.gpg-gripkey;
-
-          # https://github.com/drduh/config/blob/master/gpg.conf
-          # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Configuration-Options.html
-          # https://www.gnupg.org/documentation/manuals/gnupg/GPG-Esoteric-Options.html
-          # Some Best Practices, stronger algos etc
-          # Use AES256, 192, or 128 as cipher
-          personal-cipher-preferences = "AES256 AES192 AES";
-          # Use SHA512, 384, or 256 as digest
-          personal-digest-preferences = "SHA512 SHA384 SHA256";
-          # Use ZLIB, BZIP2, ZIP, or no compression
-          personal-compress-preferences = "ZLIB BZIP2 ZIP Uncompressed";
-          # Default preferences for new keys
-          default-preference-list = "SHA512 SHA384 SHA256 AES256 AES192 AES ZLIB BZIP2 ZIP Uncompressed";
-          # SHA512 as digest to sign keys
-          cert-digest-algo = "SHA512";
-          # SHA512 as digest for symmetric ops
-          s2k-digest-algo = "SHA512";
-          # AES256 as cipher for symmetric ops
-          s2k-cipher-algo = "AES256";
-          # UTF-8 support for compatibility
-          charset = "utf-8";
-          # Show Unix timestamps
-          fixed-list-mode = "";
-          # No comments in signature
-          no-comments = "";
-          # No version in signature
-          no-emit-version = "";
-          # Disable banner
-          no-greeting = "";
-          # Long hexidecimal key format
-          keyid-format = "0xlong";
-          # Display UID validity
-          list-options = "show-uid-validity";
-          verify-options = "show-uid-validity";
-          # Display all keys and their fingerprints
-          with-fingerprint = "";
-          # Cross-certify subkeys are present and valid
-          require-cross-certification = "";
-          # Disable caching of passphrase for symmetrical ops
-          no-symkey-cache = "";
-          keyserver =  "hkp://keys.gnupg.net";
-          use-agent = true;
-          # pinentry-mode = "loopback";
-        };
-      };
-    };
+  };
+};
 
 #+end_src
 
@@ -1904,18 +1891,18 @@ home.packages = with pkgs; [
 *** services
 
 #+begin_src nix :noweb-ref home-settings
-  # Nicely reload system units when changing configs
-  systemd.user.startServices = "sd-switch";
+# Nicely reload system units when changing configs
+systemd.user.startServices = "sd-switch";
 
-  services = {
-    blueman-applet.enable = true;
-    udiskie = {
-      enable = true;
-      automount = true;
-      tray = "always";
-    };
-    network-manager-applet.enable = true;
+services = {
+  blueman-applet.enable = true;
+  udiskie = {
+    enable = true;
+    automount = true;
+    tray = "always";
   };
+  network-manager-applet.enable = true;
+};
 
 #+end_src
 
@@ -1961,9 +1948,9 @@ xdg = {
 *** files
 
 #+begin_src nix :noweb-ref home-settings
-  home.file."./casa.jpg" = {
-    source = ./casa.jpg;
-  };
+home.file."./casa.jpg" = {
+  source = ./casa.jpg;
+};
 
 #+end_src
 
