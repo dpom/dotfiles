@@ -20,6 +20,5 @@
       enable = true;
       wrapperFeatures.gtk = true;
     };
-    programs.light.enable = true;
     };
   }

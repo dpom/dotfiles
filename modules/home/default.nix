@@ -76,7 +76,7 @@
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    matchBlocks = {
+    settings = {
       "remarkable" = {
         addKeysToAgent = "yes";
         identityFile = "~/.ssh/remarkable2";
@@ -214,6 +214,7 @@
     userDirs = {
       enable = true;
       createDirectories = true;
+      setSessionVariables = true;
       music = "${config.home.homeDirectory}/Media/Music";
       videos = "${config.home.homeDirectory}/Media/Videos";
       pictures = "${config.home.homeDirectory}/Media/Pictures";
@@ -223,9 +224,9 @@
       desktop = null;
       publicShare = null;
       extraConfig = {
-        XDG_DOTFILES_DIR = "${config.home.homeDirectory}/.dotfiles";
-        XDG_PERS_DIR = "${config.home.homeDirectory}/pers";
-        XDG_WORK_DIR = "${config.home.homeDirectory}/work";
+        DOTFILES = "${config.home.homeDirectory}/.dotfiles";
+        PERS = "${config.home.homeDirectory}/pers";
+        WORK = "${config.home.homeDirectory}/work";
       };
     };
     mime.enable = true;

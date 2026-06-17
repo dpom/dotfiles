@@ -497,20 +497,12 @@ users.users.ollama = {
 
 services.ollama = {
   enable = true;
-  acceleration = "rocm";
-
-  # Verifică dacă argumentele transmise aici se potrivesc cu ce cere ollama.nix
-  package = pkgs.callPackage ../../modules/nixos/ollama.nix {
-    inherit (pkgs) ollama fetchFromGitHub rocmPackages;
-    acceleration = "rocm";
-  };
+  package = pkgs.ollama-rocm;
 
   rocmOverrideGfx = "11.0.0";
   environmentVariables = {
     HSA_OVERRIDE_GFX_VERSION = "11.0.0";
-    # Această linie este critică pentru a găsi bibliotecile GPU în NixOS
     LD_LIBRARY_PATH = "/run/add-opengl-driver/lib:${pkgs.rocmPackages.clr}/lib";
-
   };
 };
 
@@ -1068,12 +1060,12 @@ systemd.user.services.polkit-gnome-authentication-agent-1 = {
 
 #+begin_src nix :noweb-ref nixos-common
 systemd = {
-  sleep.extraConfig = ''
-  AllowSuspend=yes
-  AllowHibernation=yes
-  AllowHybridSleep=yes
-  AllowSuspendThenHibernate=yes
-'';
+  sleep.settings.Sleep = {
+    AllowSuspend = "yes";
+    AllowHibernation = "yes";
+    AllowHybridSleep = "yes";
+    AllowSuspendThenHibernate = "yes";
+  };
 };
 #+end_src
 
@@ -1090,6 +1082,7 @@ services.blueman.enable = true;
 environment.systemPackages = with pkgs; [
   acpi
   age
+  brightnessctl
   git
   home-manager
   htop
@@ -1751,7 +1744,7 @@ systemd.user.sessionVariables = {
 programs.ssh = {
   enable = true;
   enableDefaultConfig = false;
-  matchBlocks = {
+  settings = {
     "remarkable" = {
       addKeysToAgent = "yes";
       identityFile = "~/.ssh/remarkable2";
@@ -1910,6 +1903,7 @@ xdg = {
   userDirs = {
     enable = true;
     createDirectories = true;
+    setSessionVariables = true;
     music = "${config.home.homeDirectory}/Media/Music";
     videos = "${config.home.homeDirectory}/Media/Videos";
     pictures = "${config.home.homeDirectory}/Media/Pictures";
@@ -1919,9 +1913,9 @@ xdg = {
     desktop = null;
     publicShare = null;
     extraConfig = {
-      XDG_DOTFILES_DIR = "${config.home.homeDirectory}/.dotfiles";
-      XDG_PERS_DIR = "${config.home.homeDirectory}/pers";
-      XDG_WORK_DIR = "${config.home.homeDirectory}/work";
+      DOTFILES = "${config.home.homeDirectory}/.dotfiles";
+      PERS = "${config.home.homeDirectory}/pers";
+      WORK = "${config.home.homeDirectory}/work";
     };
   };
   mime.enable = true;
@@ -2357,7 +2351,7 @@ in
       feh
       i3
       i3status
-      light
+      brightnessctl
       maim
       networkmanagerapplet
       playerctl
@@ -2368,7 +2362,7 @@ in
       xdotool
       xsecurelock
       xsel
-      xfce.thunar
+      thunar
     ]);
 
 
@@ -3003,7 +2997,10 @@ sistem de notificare specific sway
     dpom-gemini.enable = lib.mkEnableOption "Add gemini cli";
   };
   config = lib.mkIf config.dpom-gemini.enable {
-    programs.gemini-cli.enable = true;
+    programs.antigravity-cli = {
+      enable = true;
+      package = pkgs.gemini-cli;
+    };
   };
 }
 #+end_src
@@ -3064,7 +3061,7 @@ assigns = {
 
   # commands
   "${modifier}+Return" = "exec kitty";
-  "${modifier}+f" = "exec ${pkgs.xfce.thunar}/bin/thunar";
+  "${modifier}+f" = "exec ${pkgs.thunar}/bin/thunar";
 
   # switch to workspace
   "${modifier}+1" = "workspace number ${ws1}";
@@ -3127,7 +3124,6 @@ assigns = {
       enable = true;
       wrapperFeatures.gtk = true;
     };
-    programs.light.enable = true;
     };
   }
 #+end_src
@@ -3162,7 +3158,7 @@ in
       dmenu
       grim
       kanshi
-      light
+      brightnessctl
       maim
       papirus-icon-theme
       rofi-power-menu
@@ -3175,7 +3171,7 @@ in
       wl-clipboard
       wofi
       xdotool
-      xfce.thunar
+      thunar
       xsecurelock
     ]);
 
@@ -3211,8 +3207,8 @@ in
             "Print+Shift+Ctrl" = "exec shotman -c window";
 
             # Brightness
-            "XF86MonBrightnessDown" = "exec ${pkgs.light}/bin/light -U 10";
-            "XF86MonBrightnessUp" = "exec ${pkgs.light}/bin/light -A 10";
+            "XF86MonBrightnessDown" = "exec ${pkgs.brightnessctl}/bin/brightnessctl set 10%-";
+            "XF86MonBrightnessUp" = "exec ${pkgs.brightnessctl}/bin/brightnessctl set 10%+";
 
             # Volume
             "XF86AudioRaiseVolume" = "exec 'pactl set-sink-volume @DEFAULT_SINK@ +1%'";
@@ -3405,8 +3401,8 @@ programs.swayr = {
     msmtp
     neil
     nixd
-    nixfmt-rfc-style
-    nodePackages.graphql-language-service-cli
+    nixfmt
+    graphql-language-service-cli
     nodejs_24
     pandoc
     plantuml
@@ -3433,7 +3429,6 @@ programs.swayr = {
     });
   extraPackages = epkgs: [
       epkgs.clojure-ts-mode
-      epkgs.erk
       epkgs.mu4e
       epkgs.pdf-tools
       epkgs.treesit-grammars.with-all-grammars

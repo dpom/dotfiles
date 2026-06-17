@@ -30,8 +30,8 @@
     msmtp
     neil
     nixd
-    nixfmt-rfc-style
-    nodePackages.graphql-language-service-cli
+    nixfmt
+    graphql-language-service-cli
     nodejs_24
     pandoc
     plantuml
@@ -58,7 +58,6 @@
     });
   extraPackages = epkgs: [
       epkgs.clojure-ts-mode
-      epkgs.erk
       epkgs.mu4e
       epkgs.pdf-tools
       epkgs.treesit-grammars.with-all-grammars

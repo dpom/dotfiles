@@ -156,20 +156,12 @@
   
   services.ollama = {
     enable = true;
-    acceleration = "rocm";
-  
-    # Verifică dacă argumentele transmise aici se potrivesc cu ce cere ollama.nix
-    package = pkgs.callPackage ../../modules/nixos/ollama.nix {
-      inherit (pkgs) ollama fetchFromGitHub rocmPackages;
-      acceleration = "rocm";
-    };
+    package = pkgs.ollama-rocm;
   
     rocmOverrideGfx = "11.0.0";
     environmentVariables = {
       HSA_OVERRIDE_GFX_VERSION = "11.0.0";
-      # Această linie este critică pentru a găsi bibliotecile GPU în NixOS
       LD_LIBRARY_PATH = "/run/add-opengl-driver/lib:${pkgs.rocmPackages.clr}/lib";
-  
     };
   };
   

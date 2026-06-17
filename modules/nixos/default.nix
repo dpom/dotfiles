@@ -147,40 +147,42 @@
   };
   
   systemd = {
-    sleep.extraConfig = ''
-    AllowSuspend=yes
-    AllowHibernation=yes
-    AllowHybridSleep=yes
-    AllowSuspendThenHibernate=yes
-  '';
+    sleep.settings.Sleep = {
+      AllowSuspend = "yes";
+      AllowHibernation = "yes";
+      AllowHybridSleep = "yes";
+      AllowSuspendThenHibernate = "yes";
+    };
   };
   hardware.bluetooth.enable = true;
   services.blueman.enable = true;
   environment.systemPackages = with pkgs; [
     acpi
-      age
-      git
-      htop
-      localsend
-      mc
-      nitrogen
-      nixd
-      openssh
-      pavucontrol
-      pasystray
-      picom
-      pulseaudioFull
-      udiskie
-      udisks
-      unrar
-      unzip
-      usbutils
-      syncthing
-      wget
-      xcalib
+    age
+    brightnessctl
+    git
     home-manager
-      pinentry-curses
-      polkit_gnome
+    htop
+    localsend
+    mc
+    nitrogen
+    nixd
+    openspec
+    openssh
+    pasystray
+    pavucontrol
+    picom
+    pinentry-curses
+    polkit_gnome
+    pulseaudioFull
+    syncthing
+    udiskie
+    udisks
+    unrar
+    unzip
+    usbutils
+    wget
+    xcalib
   ];
   
   users.users = {
