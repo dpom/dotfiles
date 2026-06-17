@@ -46,21 +46,21 @@ This file contains the configuration for all of my hosts. It is an Org file writ
 
 - nix ecosistem:
   #+begin_src nix
-nixpkgs.url = "github:nixos/nixpkgs/nixos-25.11";
+nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 # nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 nixos-hardware.url = "github:NixOS/nixos-hardware/master";
   #+end_src
 - home manager:
   #+begin_src nix
 home-manager = {
-  url = "github:nix-community/home-manager/release-25.11";
+  url = "github:nix-community/home-manager/release-26.05";
   inputs.nixpkgs.follows = "nixpkgs";
 };
   #+end_src
 - stylix
   #+begin_src nix
 stylix = {
-  url = "github:danth/stylix/release-25.11";
+  url = "github:danth/stylix/release-26.05";
   inputs.nixpkgs.follows = "nixpkgs";
 };
   #+end_src
@@ -1086,36 +1086,33 @@ services.blueman.enable = true;
 
 *** system packages
 
-#+begin_src nix :noweb-ref system-packages
-acpi
+#+begin_src nix :noweb-ref nixos-common
+environment.systemPackages = with pkgs; [
+  acpi
   age
   git
+  home-manager
   htop
   localsend
   mc
   nitrogen
   nixd
+  openspec
   openssh
-  pavucontrol
   pasystray
+  pavucontrol
   picom
+  pinentry-curses
+  polkit_gnome
   pulseaudioFull
+  syncthing
   udiskie
   udisks
   unrar
   unzip
   usbutils
-  syncthing
   wget
   xcalib
-#+end_src
-
-#+begin_src nix :noweb yes :noweb-ref nixos-common
-environment.systemPackages = with pkgs; [
-  <<system-packages>>
-  home-manager
-    pinentry-curses
-    polkit_gnome
 ];
 
 #+end_src
@@ -1392,7 +1389,6 @@ Login screen
   };
 }
 #+end_src
-
 
 ** Solaar
 
@@ -2611,7 +2607,6 @@ nix module for office:
   };
 }
 #+end_src
-
 
 
 ** Waybar

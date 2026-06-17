@@ -14,11 +14,11 @@
 
     security.wrappers = {
       cdrecord = {
-      owner = "root";
-      group = "optical";
-      # capabilities = "cap_sys_rawio,cap_ipc_lock=ep";
-      setuid = true;
-      source = "${pkgs.cdrtools}/bin/cdrecord";
+        owner = "root";
+        group = "optical";
+        # capabilities = "cap_sys_rawio,cap_ipc_lock=ep";
+        setuid = true;
+        source = "${pkgs.cdrtools}/bin/cdrecord";
       };
 
       cdrdao = {
@@ -34,11 +34,11 @@
   SUBSYSTEM=="block", KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
 '';
 
-#     services.udev.extraRules = ''
-#   # Permite grupului optical să acceseze unitatea optică și interfața generică
-#   KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
-#   KERNEL=="sg[0-9]*", GROUP="optical", MODE="0660"
-# '';
+    #     services.udev.extraRules = ''
+    #   # Permite grupului optical să acceseze unitatea optică și interfața generică
+    #   KERNEL=="sr[0-9]*", GROUP="optical", MODE="0660"
+    #   KERNEL=="sg[0-9]*", GROUP="optical", MODE="0660"
+    # '';
 
     environment.systemPackages = with pkgs; [
       kdePackages.k3b

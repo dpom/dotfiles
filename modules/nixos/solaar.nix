@@ -7,7 +7,7 @@
 }:
 {
   imports = [
-      inputs.solaar.nixosModules.default
+    inputs.solaar.nixosModules.default
   ];
 
   options = {

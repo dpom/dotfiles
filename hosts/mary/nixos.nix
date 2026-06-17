@@ -100,19 +100,19 @@
   
   
   services.syncthing = {
-      enable = true;
-      openDefaultPorts = true;
-      user = config.user-vars.user;
-      group = "users";
-      dataDir = config.user-vars.home;    # Default folder for new synced folders, instead of /var/lib/syncthing
-      configDir = "${config.user-vars.home}/.config/syncthing";   # Folder for Syncthing's settings and keys
+    enable = true;
+    openDefaultPorts = true;
+    user = config.user-vars.user;
+    group = "users";
+    dataDir = config.user-vars.home;    # Default folder for new synced folders, instead of /var/lib/syncthing
+    configDir = "${config.user-vars.home}/.config/syncthing";   # Folder for Syncthing's settings and keys
     
   
     settings = {
-          options = {
-            localAnnouceEnabled = false;
-            urAccepted = -1;
-          };
+      options = {
+        localAnnouceEnabled = false;
+        urAccepted = -1;
+      };
       
   
       devices = {

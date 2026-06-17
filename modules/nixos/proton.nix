@@ -22,7 +22,7 @@
     # Activate DBus, essential for communication between the application and the keyring
     services.dbus.enable = true;
 
-# Optional, but recommended if you're using a custom DM/WM (e.g., i3, Sway, Hyprland):
+    # Optional, but recommended if you're using a custom DM/WM (e.g., i3, Sway, Hyprland):
     # Make sure the authentication agent starts automatically
     security.polkit.enable = true;
 

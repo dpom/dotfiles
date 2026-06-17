@@ -1138,10 +1138,30 @@ org-mode
 
   ;; Org
   (with-eval-after-load 'org
+    (require 'cape-keyword)
     (add-hook 'org-mode-hook #'local/cape-capf-setup-org)
     (defun local/cape-capf-setup-org ()
       (require 'org-roam)
-      (add-to-list 'completion-at-point-functions #'org-roam-complete-link-at-point)))
+      (add-to-list 'completion-at-point-functions #'org-roam-complete-link-at-point)
+      (add-to-list 'completion-at-point-functions #'local/cape-org-src-keywords))
+    (defun local/cape-org-src-keywords ()
+      "Complete keywords in Org babel source blocks.
+Looks up the source block's language in `cape-keyword-list' to
+provide language-specific keyword completion."
+      (when-let* ((info (org-babel-get-src-block-info 'light))
+                  (lang (car info))
+                  (mode (org-src-get-lang-mode lang))
+                  (kw (or (alist-get mode cape-keyword-list)
+                          (when-let* ((remap (rassq mode major-mode-remap-alist)))
+                            (alist-get (car remap) cape-keyword-list)))))
+        (while (and (consp kw) (symbolp (car kw)))
+          (setq kw (alist-get (car kw) cape-keyword-list)))
+        (when (consp kw)
+          (let ((bounds (bounds-of-thing-at-point 'symbol)))
+            (when bounds
+              (list (car bounds) (cdr bounds) kw
+                    :annotation-function (lambda (_) " Keyword")
+                    :exclusive 'no)))))))
   (add-hook 'comint-mode-hook #'init-cape-comint-capf)
   (add-hook 'eshell-mode-hook #'init-cape-comint-capf)
   (add-hook 'prog-mode-hook  #'init-cape-prog-capf)
@@ -3513,8 +3533,9 @@ With a prefix (C-u), replace the selected region."
   :demand t
   :vc (:url "https://github.com/xenodium/agent-shell")
   :config
-  (setq agent-shell-google-authenticatio
-      (agent-shell-google-make-authentication :login t)))
+  (setq agent-shell-google-authentication
+      (agent-shell-google-make-authentication :login t))
+  (setq agent-shell-prefer-viewport-interaction t))
 #+end_src
 **** specific menu
 
@@ -3522,8 +3543,12 @@ With a prefix (C-u), replace the selected region."
 (with-eval-after-load 'transient
   (transient-define-prefix local/ai-menu ()
     "ai menu"
-    [["gptel"
-      ("a" "agent" gptel-agent)
+    [["agent-shell"
+      ("aa" "agent" agent-shell)
+      ("ad" "add-dwim" agent-shell-send-dwim)
+      ("af" "add file" agent-shell-send-file)
+      ("ar" "add-region" agent-shell-send-region)]
+      ["gptel"
       ("d" "add" gptel-add)
       ("f" "add file" gptel-add-file)
       ("u" "main" gptel)
@@ -5317,7 +5342,7 @@ Keybindings occupy a central place in emacs optimization. I'd like a coherent, e
 (define-key mode-specific-map "+"  'local/translate)
 (define-key mode-specific-map "-"  'sort-lines)
 (define-key mode-specific-map "/"  'consult-line)
-(define-key mode-specific-map "A"  'eca)
+(define-key mode-specific-map "A"  'agent-shell)
 (define-key mode-specific-map "C"  'calendar)
 (define-key mode-specific-map "E"  'eshell)
 (define-key mode-specific-map "M"  'mu4e)

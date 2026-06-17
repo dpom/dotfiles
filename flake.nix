@@ -75,7 +75,6 @@
             inherit inputs outputs;
           };
           modules = [
-            sops-nix.nixosModules.sops
             ./vars.nix
             ./sops.nix
             ./hosts/mary/nixos.nix
