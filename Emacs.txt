@@ -3441,6 +3441,24 @@ This is what you see when you evoke C-h i or run (info)."
   )
 
   #+end_src
+- codex:
+  #+begin_src emacs-lisp
+(with-eval-after-load 'gptel
+  (gptel-make-preset 'codex
+    :description "local coding agent"
+    :pre (lambda () (require 'llm-tool-collection))
+    :backend "Ollama"
+    :model 'qwen2.5-coder:latest
+    :system "You are Codex, a highly capable coding agent. Help the user
+write correct, idiomatic, well-structured code. When asked to implement
+something, think step by step, consider edge cases, and provide complete
+solutions. Use the available tools to search, read, and understand the
+codebase before making changes."
+    :highlight-mode 't
+    :confirm-tool-calls 'auto
+    :include-tool-results 't)
+  )
+  #+end_src
 
 **** gptel-quick
 
@@ -3546,6 +3564,7 @@ With a prefix (C-u), replace the selected region."
     [["agent-shell"
       ("aa" "agent" agent-shell)
       ("ad" "add-dwim" agent-shell-send-dwim)
+      ("ae" "edit prompt" agent-shell-prompt-compose)
       ("af" "add file" agent-shell-send-file)
       ("ar" "add-region" agent-shell-send-region)]
       ["gptel"
@@ -5534,6 +5553,7 @@ Keybindings occupy a central place in emacs optimization. I'd like a coherent, e
 
   (add-to-list 'meow-mode-state-list '(cargo-process-mode . motion))
   (add-to-list 'meow-mode-state-list '(emms-playlist-mode . motion))
+  (add-to-list 'meow-mode-state-list '(agent-shell-mode . insert))
 
   (meow-setup)
   (meow-setup-indicator)
