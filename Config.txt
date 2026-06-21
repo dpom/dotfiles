@@ -486,34 +486,14 @@ hardware.fw-fanctrl = {
 **** ollama
 
 #+begin_src nix :noweb-ref mary-nixos
-# Configurarea grupurilor și utilizatorului pentru acces GPU
-users.groups.ollama = {}; # Creează grupul de bază
+dpom-ollama.enable = true;
+dpom-ollama.acceleration = "rocm";
 
-users.users.ollama = {
-  group = "ollama";
-  extraGroups = [ "video" "render" ];
-  isSystemUser = true; # Aceasta rezolvă eroarea "Exactly one of isSystemUser and isNormalUser must be set"
-};
+#+end_src
 
-services.ollama = {
-  enable = true;
-  package = pkgs.ollama-rocm;
+**** nix-ld
 
-  rocmOverrideGfx = "11.0.0";
-  environmentVariables = {
-    HSA_OVERRIDE_GFX_VERSION = "11.0.0";
-    LD_LIBRARY_PATH = "/run/add-opengl-driver/lib:${pkgs.rocmPackages.clr}/lib";
-  };
-};
-
-hardware.graphics = {
-  enable = true;
-  extraPackages = with pkgs; [
-    rocmPackages.clr.icd
-    rocmPackages.clr
-    rocmPackages.rocminfo # Util pentru debugging
-  ];
-};
+#+begin_src nix :noweb-ref mary-nixos
 programs.nix-ld.enable = true;
 
 #+end_src
@@ -732,16 +712,14 @@ services.syncthing = {
 **** ollama
 
 #+begin_src nix :noweb-ref bob-nixos
-services.ollama = {
-  enable = true;
-  package = pkgs.callPackage ../../modules/nixos/ollama.nix {
-    inherit (pkgs) ollama;
-  };
+dpom-ollama.enable = true;
+dpom-ollama.loadModels = [
+  "gemma3:12b"
+];
+#+end_src
+**** nix-ld
 
-  loadModels = [
-    "gemma3:12b"
-  ];
-};
+#+begin_src nix :noweb-ref bob-nixos
 programs.nix-ld.enable = true;
 #+end_src
 **** clipboard
@@ -788,7 +766,7 @@ services.greenclip.enable = true;
   home.packages = with pkgs; [
     calibre
     deluge
-    protonvpn-gui
+    proton-vpn
     scribus
     simple-scan
     system-config-printer
@@ -905,6 +883,7 @@ imports = [
   ./fonts.nix
   ./nvidia.nix
   ./greetd.nix
+  ./ollama.nix
   ./podman.nix
   ./proton.nix
   ./solaar.nix
@@ -1019,7 +998,7 @@ security.pam.services.login.enableGnomeKeyring = true;
 programs = {
   thunar = {
     enable = true;
-    plugins = with pkgs.xfce; [ thunar-archive-plugin thunar-volman ];
+    plugins = [ pkgs.thunar-archive-plugin pkgs.thunar-volman ];
   };
   dconf.enable = true;
   # This enables the system-wide agent service
@@ -1176,37 +1155,64 @@ options = {
 
 #+end_src
 
-** Ollama
+** Ollama module
 
 #+begin_src nix :tangle modules/nixos/ollama.nix
 {
-  ollama,
-  fetchFromGitHub,
-  acceleration ? null,
-  rocmPackages, # Adăugat pentru acces la biblioteci
+  config,
+  lib,
+  pkgs,
   ...
 }:
-# Folosim override pentru a schimba argumentele de construcție
-(ollama.override { inherit acceleration; }).overrideAttrs (oldAttrs: rec {
-  pname = "ollama";
-  version = "0.23.2";
-
-  src = fetchFromGitHub {
-    owner = "ollama";
-    repo = "ollama";
-    rev = "v${version}";
-    hash = "sha256-4K1+GE96Uu5w1otSiP69vNDJ03tFvr78VluIEHMzFGQ=";
+let
+  cfg = config.dpom-ollama;
+in {
+  options.dpom-ollama = {
+    enable = lib.mkEnableOption "Ollama service with GPU acceleration support";
+    acceleration = lib.mkOption {
+      type = lib.types.nullOr (lib.types.enum [ "rocm" ]);
+      default = null;
+      description = "GPU acceleration backend for Ollama (null = CPU, rocm = AMD GPU)";
+    };
+    rocmGfxOverride = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Optional GFX version override for ROCm (e.g. 11.0.0). Leave null for native ISA.";
+    };
+    loadModels = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "List of models to preload on startup";
+    };
   };
-  postPatch = "";
-  vendorHash = "sha256-Aj62Q+XvUp9MHBAYaYC6GLIP6Ut89bJHxAG7raRI0WA=";
 
-  # Forțăm includerea bibliotecilor ROCm în mediul de execuție al binarului
-  buildInputs = oldAttrs.buildInputs ++ (if acceleration == "rocm" then [
-    rocmPackages.clr
-    rocmPackages.hipblas
-    rocmPackages.rocblas
-  ] else []);
-})
+  config = lib.mkIf cfg.enable {
+    services.ollama = {
+      enable = true;
+      package = pkgs.ollama.override {
+        acceleration = if cfg.acceleration == "rocm" then "rocm" else null;
+      };
+      inherit (cfg) loadModels;
+      rocmOverrideGfx = cfg.rocmGfxOverride;
+      environmentVariables = lib.mkIf (cfg.acceleration == "rocm") {
+        OLLAMA_IGPU_ENABLE = "1";
+      };
+    };
+
+    hardware.graphics = lib.mkIf (cfg.acceleration == "rocm") {
+      enable = true;
+      extraPackages = with pkgs; [
+        rocmPackages.clr.icd
+        rocmPackages.clr
+        rocmPackages.rocminfo
+      ];
+    };
+
+    environment.systemPackages = lib.mkIf (cfg.acceleration == "rocm") (with pkgs; [
+      rocmPackages.rocminfo
+    ]);
+  };
+}
 #+end_src
 
 ** Strongswan
@@ -1537,7 +1543,7 @@ Login screen
 
     environment.systemPackages = with pkgs; [
       protonmail-bridge-gui # Mandatory bridge for Proton
-      protonvpn-gui
+      proton-vpn
     ];
 
     # Activate GNOME Keyring for secure storage of credentials

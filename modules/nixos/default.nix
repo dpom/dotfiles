@@ -27,6 +27,7 @@
     ./fonts.nix
     ./nvidia.nix
     ./greetd.nix
+    ./ollama.nix
     ./podman.nix
     ./proton.nix
     ./solaar.nix
@@ -116,7 +117,7 @@
   programs = {
     thunar = {
       enable = true;
-      plugins = with pkgs.xfce; [ thunar-archive-plugin thunar-volman ];
+      plugins = [ pkgs.thunar-archive-plugin pkgs.thunar-volman ];
     };
     dconf.enable = true;
     # This enables the system-wide agent service

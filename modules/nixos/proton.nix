@@ -13,7 +13,7 @@
 
     environment.systemPackages = with pkgs; [
       protonmail-bridge-gui # Mandatory bridge for Proton
-      protonvpn-gui
+      proton-vpn
     ];
 
     # Activate GNOME Keyring for secure storage of credentials

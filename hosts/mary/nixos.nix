@@ -145,34 +145,9 @@
     disableBatteryTempCheck = false;
   };
   
-  # Configurarea grupurilor și utilizatorului pentru acces GPU
-  users.groups.ollama = {}; # Creează grupul de bază
+  dpom-ollama.enable = true;
+  dpom-ollama.acceleration = "rocm";
   
-  users.users.ollama = {
-    group = "ollama";
-    extraGroups = [ "video" "render" ];
-    isSystemUser = true; # Aceasta rezolvă eroarea "Exactly one of isSystemUser and isNormalUser must be set"
-  };
-  
-  services.ollama = {
-    enable = true;
-    package = pkgs.ollama-rocm;
-  
-    rocmOverrideGfx = "11.0.0";
-    environmentVariables = {
-      HSA_OVERRIDE_GFX_VERSION = "11.0.0";
-      LD_LIBRARY_PATH = "/run/add-opengl-driver/lib:${pkgs.rocmPackages.clr}/lib";
-    };
-  };
-  
-  hardware.graphics = {
-    enable = true;
-    extraPackages = with pkgs; [
-      rocmPackages.clr.icd
-      rocmPackages.clr
-      rocmPackages.rocminfo # Util pentru debugging
-    ];
-  };
   programs.nix-ld.enable = true;
   
   # Activează virtualizarea

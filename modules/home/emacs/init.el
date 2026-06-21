@@ -951,6 +951,11 @@ provide language-specific keyword completion."
         (setq insert-directory-program gls)
       (setq dired-use-ls-dired nil)))) ; Fallback dacă gls nu e găsit
 
+(use-package wdired
+  :after dired
+  :bind
+  (:map dired-mode-map ("C-c '" . wdired-change-to-wdired-mode)))
+
 (use-package async
   :ensure t
   :demand t
@@ -2361,6 +2366,22 @@ This is what you see when you evoke C-h i or run (info)."
     :include-tool-results nil)
   )
 
+(with-eval-after-load 'gptel
+  (gptel-make-preset 'codex
+    :description "local coding agent"
+    :pre (lambda () (require 'llm-tool-collection))
+    :backend "Ollama"
+    :model 'qwen2.5-coder:latest
+    :system "You are Codex, a highly capable coding agent. Help the user
+write correct, idiomatic, well-structured code. When asked to implement
+something, think step by step, consider edge cases, and provide complete
+solutions. Use the available tools to search, read, and understand the
+codebase before making changes."
+    :highlight-mode 't
+    :confirm-tool-calls 'auto
+    :include-tool-results 't)
+  )
+
 (use-package gptel-agent
   :ensure t
   :after gptel
@@ -2424,6 +2445,7 @@ With a prefix (C-u), replace the selected region."
     [["agent-shell"
       ("aa" "agent" agent-shell)
       ("ad" "add-dwim" agent-shell-send-dwim)
+      ("ae" "edit prompt" agent-shell-prompt-compose)
       ("af" "add file" agent-shell-send-file)
       ("ar" "add-region" agent-shell-send-region)]
       ["gptel"
@@ -3767,6 +3789,9 @@ Reguli:
 
   (add-to-list 'meow-mode-state-list '(cargo-process-mode . motion))
   (add-to-list 'meow-mode-state-list '(emms-playlist-mode . motion))
+  (add-to-list 'meow-mode-state-list '(agent-shell-mode . insert))
+  (add-to-list 'meow-mode-state-list '(agent-shell-viewport-view-mode . motion))
+  (add-to-list 'meow-mode-state-list '(agent-shell-viewport-edit-mode . insert))
 
   (meow-setup)
   (meow-setup-indicator)

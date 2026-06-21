@@ -9,23 +9,23 @@
   dpom-xserver.enable = true;
   dpom-cdrom.enable = true;
   dpom-proton.enable = true;
-  # Bootloader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  # boot.loader.limine.maxGenerations = 10;
-  networking = {
-    hostName = "bob"; # Define your hostname.
+    # Bootloader.
+    boot.loader.systemd-boot.enable = true;
+    boot.loader.efi.canTouchEfiVariables = true;
+    # boot.loader.limine.maxGenerations = 10;
+    networking = {
+      hostName = "bob"; # Define your hostname.
   
-    # Enable networking
-    networkmanager.enable = true;
-    hosts = {
-      "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
-      "192.168.i0.110" = [ "remarkable"];
+      # Enable networking
+      networkmanager.enable = true;
+      hosts = {
+        "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+        "192.168.i0.110" = [ "remarkable"];
+      };
+      # allow org-roam web ui
+      firewall.allowedTCPPorts = [ 35901 ];
+  
     };
-    # allow org-roam web ui
-    firewall.allowedTCPPorts = [ 35901 ];
-  
-  };
   
   users.users.git = {
     isNormalUser = true;
@@ -100,16 +100,10 @@
     };
   };
   
-  services.ollama = {
-    enable = true;
-    package = pkgs.callPackage ../../modules/nixos/ollama.nix {
-      inherit (pkgs) ollama;
-    };
-  
-    loadModels = [
-      "gemma3:12b"
-    ];
-  };
+  dpom-ollama.enable = true;
+  dpom-ollama.loadModels = [
+    "gemma3:12b"
+  ];
   programs.nix-ld.enable = true;
   services.greenclip.enable = true;
 

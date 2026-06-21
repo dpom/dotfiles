@@ -1,4 +1,10 @@
-## ADDED Requirements
+# ollama-acceleration
+
+## Purpose
+
+Manage Ollama GPU acceleration on AMD hardware via ROCm, with CPU fallback for systems without discrete GPUs.
+
+## Requirements
 
 ### Requirement: Ollama acceleration mode selection
 The system SHALL provide a NixOS module option `dpom-ollama.acceleration` that accepts `null` (CPU-only) or `"rocm"` (AMD GPU).
@@ -19,7 +25,7 @@ The system SHALL provide a NixOS module option `dpom-ollama.acceleration` that a
 - **THEN** no ollama service SHALL be configured or started
 
 ### Requirement: GFX version override for ROCm
-The module SHALL provide `dpom-ollama.rocmGfxOverride` as an optional string option to set `HSA_OVERRIDE_GFX_VERSION` and `rocmOverrideGfx`. When unset (default `null`), no override SHALL be applied and ROCm SHALL use the native ISA.
+The module SHALL provide `dpom-ollama.rocmGfxOverride` as an optional string option to set `HSA_OVERRIDE_GFX_VERSION` and `services.ollama.rocmOverrideGfx`. When unset (default `null`), no override SHALL be applied and ROCm SHALL use the native ISA.
 
 #### Scenario: No GFX override (native ISA)
 - **WHEN** `dpom-ollama.rocmGfxOverride` is not set

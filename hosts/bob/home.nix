@@ -17,7 +17,7 @@
   home.packages = with pkgs; [
     calibre
     deluge
-    protonvpn-gui
+    proton-vpn
     scribus
     simple-scan
     system-config-printer

@@ -1599,7 +1599,7 @@ emacs has countless search commands in buffers. The problem is that there are to
       (setq dired-use-ls-dired nil)))) ; Fallback dacă gls nu e găsit
 #+end_src
 - editable
-  ,#+begin_src emacs-lisp
+  #+begin_src emacs-lisp
 (use-package wdired
   :after dired
   :bind
@@ -5554,6 +5554,8 @@ Keybindings occupy a central place in emacs optimization. I'd like a coherent, e
   (add-to-list 'meow-mode-state-list '(cargo-process-mode . motion))
   (add-to-list 'meow-mode-state-list '(emms-playlist-mode . motion))
   (add-to-list 'meow-mode-state-list '(agent-shell-mode . insert))
+  (add-to-list 'meow-mode-state-list '(agent-shell-viewport-view-mode . motion))
+  (add-to-list 'meow-mode-state-list '(agent-shell-viewport-edit-mode . insert))
 
   (meow-setup)
   (meow-setup-indicator)
