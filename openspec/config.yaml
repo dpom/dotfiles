@@ -1,13 +1,20 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  This is a Nix-based dotfiles repository using Nix Flakes, Home Manager, and NixOS.
+  All configuration files are generated from literate Org mode files via Emacs tangle:
+
+  - Config.txt → tangles to .nix files (host configs, modules, vars)
+  - Emacs.txt  → tangles to init.el, early-init.el, templates.eld
+
+  Key workflow rules:
+  - Always edit the .txt (Org mode) files, never edit generated .nix/.el files directly
+  - After editing, run `ent generate` or `./bin/generate-admin` to tangle
+  - Commit both the .txt source and the generated files together
+  - Two hosts: mary (Framework laptop) and bob (desktop)
+  - Home Manager modules: modules/home/<name>.nix
+  - NixOS modules: modules/nixos/<name>.nix
+  - Secrets managed via SOPS (secrets/secrets.yaml, age key at ~/.ssh/id_sops_age)
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.

@@ -586,7 +586,7 @@ virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la 
 #+end_src
 ** bob
 
-NixOS Configuration for bob  ()
+NixOS Configuration for bob (Intel NUC 10FNK)
 
 *** nixos
 
