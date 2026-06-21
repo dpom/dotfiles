@@ -19,7 +19,7 @@
 ## 4. Verify and deploy
 
 - [x] 4.1 Syntax-checked all generated .nix files with `nix-instantiate --parse` — all OK
-- [ ] 4.2 Apply to Mary: `home-manager switch -b backup --flake .#dan@mary && sudo nixos-rebuild switch --flake .#mary`
-- [ ] 4.3 On Mary, run `rocminfo` and `ollama list` to verify GPU is detected; run a model and check `ollama ps` to confirm GPU inference
-- [ ] 4.4 Apply to Bob: `home-manager switch -b backup --flake .#dan@bob && sudo nixos-rebuild switch --flake .#bob`
-- [ ] 4.5 On Bob, run `ollama list` and `ollama ps` to verify service is running (CPU-only)
+- [x] 4.2 Apply to Mary: `home-manager switch -b backup --flake .#dan@mary && sudo nixos-rebuild switch --flake .#mary`
+- [x] 4.3 On Mary, run `rocminfo` and `ollama list` to verify GPU is detected; run a model and check `ollama ps` to confirm GPU inference
+- [x] 4.4 Apply to Bob: `home-manager switch -b backup --flake .#dan@bob && sudo nixos-rebuild switch --flake .#bob`
+- [x] 4.5 On Bob, run `ollama list` and `ollama ps` to verify service is running (CPU-only)
