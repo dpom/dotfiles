@@ -71,6 +71,10 @@ Returns nil if the file does not exist or is not readable."
       :action "home-manager news --flake . | cat")
 
 
+(task "update-opencode-models"
+      :doc "Refresh opencode model list from ollama"
+      :action (concat "cd " ent-project-home "; ./bin/update-opencode-models --nix"))
+
 (task "update-home"
       :doc "Run home-manager to generate a new version of home config"
       :deps "generate"

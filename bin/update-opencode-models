@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# update-opencode-models
+# Queries ollama for available models and outputs the models block
+# suitable for opencode config.
+#
+# Usage:
+#   ./bin/update-opencode-models          # print JSON format
+#   ./bin/update-opencode-models --nix    # print Nix attrset format
+
+mode="${1:-json}"
+
+ollama list 2>/dev/null | tail -n +2 | while read -r name _id size _modified; do
+  # Use the model tag as display name
+  if [ "$mode" = "--nix" ]; then
+    echo "    \"$name\" = {"
+    echo "      name = \"$name\";"
+    echo "      limit = { context = 32768; output = 16384; };"
+    echo "    };"
+  else
+    echo "    \"$name\": { \"name\": \"$name\", \"limit\": { \"context\": 32768, \"output\": 16384 } },"
+  fi
+done
