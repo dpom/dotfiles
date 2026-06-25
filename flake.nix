@@ -64,6 +64,14 @@
           overlays = [
              nixgl.overlay
              emacs-overlay.overlays.default
+             (final: prev: {
+               openspec = prev.openspec.overrideAttrs (old: {
+                 postInstall = (old.postInstall or "") + ''
+                   substituteInPlace $out/lib/openspec/dist/commands/config.js \
+                     --replace-fail "'npx openspec" "'openspec"
+                 '';
+               });
+             })
           ];
         }
       );

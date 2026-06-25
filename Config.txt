@@ -141,6 +141,14 @@ pkgsFor = lib.genAttrs (import systems) (
     overlays = [
        nixgl.overlay
        emacs-overlay.overlays.default
+       (final: prev: {
+         openspec = prev.openspec.overrideAttrs (old: {
+           postInstall = (old.postInstall or "") + ''
+             substituteInPlace $out/lib/openspec/dist/commands/config.js \
+               --replace-fail "'npx openspec" "'openspec"
+           '';
+         });
+       })
     ];
   }
 );
@@ -1155,7 +1163,7 @@ options = {
 
 #+end_src
 
-** Ollama module
+** Ollama
 
 #+begin_src nix :tangle modules/nixos/ollama.nix
 {
@@ -1196,6 +1204,8 @@ in {
       rocmOverrideGfx = cfg.rocmGfxOverride;
       environmentVariables = lib.mkIf (cfg.acceleration == "rocm") {
         OLLAMA_IGPU_ENABLE = "1";
+        # Încarcă doar 40 de straturi pe iGPU, restul pe CPU.
+        OLLAMA_NUM_GPU = "35";
       };
     };
 
@@ -3017,89 +3027,78 @@ sistem de notificare specific sway
 {
   config,
   lib,
+  pkgs,
   ...
 }:
+let
+  # 1. Definim șablonul de bază fără modelele hardcodate
+  opencodeTemplate = pkgs.writeText "opencode-template.json" ''
+    {
+      "model": "ollama/qwen3.6:27b",
+      "provider": {
+        "ollama": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Ollama (local)",
+          "options": {
+            "baseURL": "http://localhost:11434/v1"
+          },
+          "models": {}
+        }
+      }
+    }
+  '';
+
+  # 2. Creăm scriptul care interoghează Ollama și generează configurația finală
+  generateOpencodeConfig = pkgs.writeShellApplication {
+    name = "generate-opencode-config";
+    runtimeInputs = with pkgs; [ curl jq ];
+    text = ''
+      CONFIG_DIR="''${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+      CONFIG_FILE="$CONFIG_DIR/opencode.json"
+
+      mkdir -p "$CONFIG_DIR"
+
+      echo "Querying Ollama for local models..."
+      if curl -s -f http://localhost:11434/api/tags > /dev/null; then
+          # Transformă array-ul de modele de la Ollama în obiectul așteptat de opencode
+          # Alocă automat o limită implicită de context pentru fiecare model găsit
+          MODELS_JSON=$(curl -s http://localhost:11434/api/tags | jq -c '
+            reduce .models[] as $m ( {}; .[$m.name] = { "name": $m.name, "limit": { "context": 65536, "output": 32768 } } )
+          ')
+          echo "Found models, updating config."
+      else
+          echo "Warning: Ollama is not running or unreachable. Using empty model list."
+          MODELS_JSON="{}"
+      fi
+
+      echo "Generating $CONFIG_FILE..."
+      # Injectează obiectul generat în șablonul de bază
+      jq --argjson models "$MODELS_JSON" '.provider.ollama.models = $models' "${opencodeTemplate}" > "$CONFIG_FILE"
+
+      echo "Done! Configuration saved to $CONFIG_FILE."
+    '';
+  };
+
+in
 {
   options = {
     dpom-opencode.enable = lib.mkEnableOption "Add opencode agent";
   };
+
   config = lib.mkIf config.dpom-opencode.enable {
+    # Păstrăm activarea programului (dacă instalează pachetul), dar eliminăm `programs.opencode.settings`
     programs.opencode.enable = true;
 
-    programs.opencode.settings = {
-      model = "ollama/qwen3-coder:30b";
-      provider = {
-        ollama = {
-          npm = "@ai-sdk/openai-compatible";
-          name = "Ollama (local)";
-          options = {
-            baseURL = "http://localhost:11434/v1";
-          };
-          models = {
-            "qwen3-coder:30b" = {
-              name = "qwen3-coder:30b";
-              limit = { context = 65536; output = 32768; };
-            };
-            "qwen3.6:27b" = {
-              name = "qwen3.6:27b";
-              limit = { context = 65536; output = 32768; };
-            };
-            "gemma4:26b" = {
-              name = "gemma4:26b";
-              limit = { context = 32768; output = 16384; };
-            };
-            "llama4:maverick" = {
-              name = "llama4:maverick";
-              limit = { context = 65536; output = 32768; };
-            };
-            "gemma4:latest" = {
-              name = "gemma4:latest";
-              limit = { context = 32768; output = 16384; };
-            };
-            "deepseek-coder-v2:latest" = {
-              name = "deepseek-coder-v2:latest";
-              limit = { context = 65536; output = 32768; };
-            };
-            "codestral:latest" = {
-              name = "codestral:latest";
-              limit = { context = 32768; output = 16384; };
-            };
-            "deepseek-r1:latest" = {
-              name = "deepseek-r1:latest";
-              limit = { context = 32768; output = 16384; };
-            };
-            "gpt-oss:latest" = {
-              name = "gpt-oss:latest";
-              limit = { context = 32768; output = 16384; };
-            };
-            "qwen2.5-coder:14b" = {
-              name = "qwen2.5-coder:14b";
-              limit = { context = 32768; output = 16384; };
-            };
-            "qwen2.5-coder:32b" = {
-              name = "qwen2.5-coder:32b";
-              limit = { context = 32768; output = 16384; };
-            };
-            "qwen2.5-coder:latest" = {
-              name = "qwen2.5-coder:latest";
-              limit = { context = 32768; output = 16384; };
-            };
-            "mistral:latest" = {
-              name = "mistral:latest";
-              limit = { context = 32768; output = 16384; };
-            };
-            "llama3.1:latest" = {
-              name = "llama3.1:latest";
-              limit = { context = 32768; output = 16384; };
-            };
-          };
-        };
-      };
-    };
+    # Adăugăm comanda în PATH pentru a o putea rula și manual oricând descarci un model nou
+    home.packages = [ generateOpencodeConfig ];
+
+    # Rulăm scriptul automat la fiecare aplicare a configurației Home Manager
+    home.activation.generateOpencode = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      $DRY_RUN_CMD ${generateOpencodeConfig}/bin/generate-opencode-config
+    '';
   };
 }
 #+end_src
-
 
 ** Window Manager Common Config
 *** workspaces and modifier

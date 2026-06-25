@@ -36,6 +36,8 @@ in {
       rocmOverrideGfx = cfg.rocmGfxOverride;
       environmentVariables = lib.mkIf (cfg.acceleration == "rocm") {
         OLLAMA_IGPU_ENABLE = "1";
+        # Încarcă doar 40 de straturi pe iGPU, restul pe CPU.
+        OLLAMA_NUM_GPU = "35";
       };
     };
 
