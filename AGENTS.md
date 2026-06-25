@@ -96,3 +96,7 @@ No formal test framework. Validation is done through:
 - Commit messages should describe the *why* (not just the *what*)
 - Prefer tangle-first workflow: edit Org files → tangle → commit generated files
 - Ignored: `*~`, `#*`, `eln-cache/`, `.direnv/`, `.sops.yaml`
+
+## OpenSpec Git Discipline
+
+- For OpenSpec propose/apply/verify/archive workflows, use the local `openspec-git-discipline` skill to enforce proposal commits before apply and merge-before-archive discipline.

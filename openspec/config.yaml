@@ -1,4 +1,4 @@
-schema: spec-driven
+schema: intent-driven
 
 context: |
   This is a Nix-based dotfiles repository using Nix Flakes, Home Manager, and NixOS.
@@ -16,12 +16,12 @@ context: |
   - NixOS modules: modules/nixos/<name>.nix
   - Secrets managed via SOPS (secrets/secrets.yaml, age key at ~/.ssh/id_sops_age)
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+rules:
+  proposal:
+    - Must use grill-me skill
+  design:
+    - Must use c4-diagrams skill
+  adr:
+    - Must use architectural-decision-records skill
+  spec:
+    - Must use gherkin-authoring skill 
