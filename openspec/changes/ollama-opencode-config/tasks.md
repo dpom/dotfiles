@@ -5,11 +5,12 @@
 - [x] 1.3 Set `"ollama"` as the default `model` in the config
 - [x] 1.4 Run `./bin/generate-admin` and verify `~/.config/opencode/opencode.jsonc` is regenerated
 
-## 2. Dynamic Model Discovery Script
+## 2. Dynamic Model Discovery
 
-- [x] 2.1 Create `bin/update-opencode-models` that calls `ollama list` and outputs a JSON fragment mapping model tags to display names
-- [x] 2.2 Wire the script as a post-switch hook in Home Manager or as an `ent` command
-- [x] 2.3 Test: add a model in Ollama, run the script, confirm it appears in OpenCode's `/models`
+- [x] 2.1 Create `generate-opencode-config` (inline `pkgs.writeShellApplication` in the Nix module) that queries the Ollama HTTP API (`http://localhost:11434/api/tags`) and produces the config
+- [x] 2.2 Wire `generate-opencode-config` as a `home.activation` hook (runs every `home-manager switch`)
+- [x] 2.3 Create standalone `bin/update-opencode-models` as a convenience script using `ollama list` for manual updates
+- [x] 2.4 Test: add a model in Ollama, run `home-manager switch`, confirm it appears in OpenCode's `/models`
 
 ## 3. Verify on Both Hosts
 

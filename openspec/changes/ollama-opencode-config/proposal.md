@@ -4,9 +4,9 @@ OpenCode is configured with a bare `opencode.jsonc` (schema only), so every sess
 
 ## What Changes
 
-1. **Global OpenCode config** (`~/.config/opencode/opencode.jsonc`) — add an `ollama` provider pointing at `localhost:11434/v1`, with locally available models declared.
-2. **Dotfiles management** — options under `Config.txt` (Nix home-manager module or tangle script) so the config survives `home-manager switch`.
-3. **Dynamic model discovery** — a small script (or Nix-based approach) that populates the model list from `ollama list`, avoiding hardcoded stale model lists.
+1. **Global OpenCode config** (`~/.config/opencode/opencode.json`) — add an `ollama` provider pointing at `localhost:11434/v1`, with locally available models declared.
+2. **Dotfiles management** — a new `dpom-opencode` Home Manager module in `Config.txt` so the config survives `home-manager switch`.
+3. **Dynamic model discovery** — an activation hook in the `dpom-opencode` module that queries the Ollama API at `http://localhost:11434/api/tags` and populates the model list, avoiding hardcoded stale model lists.
 
 ## Capabilities
 
@@ -21,7 +21,7 @@ OpenCode is configured with a bare `opencode.jsonc` (schema only), so every sess
 
 ## Impact
 
-- `~/.config/opencode/opencode.jsonc` — created/populated with provider block
-- `Config.txt` — home-manager module or tangle logic that generates the OpenCode config
-- `bin/` — optionally a small shell script to update the model list
+- `~/.config/opencode/opencode.json` — created/populated with provider block
+- `Config.txt` / `modules/home/opencode.nix` — new `dpom-opencode` Home Manager module
+- `bin/update-opencode-models` — standalone helper script (alternative to the activation hook)
 - Ollama service must be running on the host for the provider to work (already true on both `mary` and `bob`)
