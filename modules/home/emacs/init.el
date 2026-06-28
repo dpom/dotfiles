@@ -1581,6 +1581,41 @@ If you omit CLOSE, it will reuse OPEN."
      'org-babel-load-languages
      '((dot . t)))))
 
+(use-package mermaid-mode
+  :ensure t
+  :mode "\\.mmd\\'"
+  :config
+  (defun local/mermaid-preview ()
+    "Render the current .mmd buffer to PNG via mmdc and display it."
+    (interactive)
+    (let* ((input (buffer-file-name))
+           (output (concat (file-name-sans-extension input) ".png")))
+      (if input
+          (let ((exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") t
+                                         "-i" input
+                                         "-o" output
+                                         "-q")))
+            (if (and (eq exit-code 0) (file-exists-p output))
+                (progn
+                  (kill-buffer "*mmdc-errors*")
+                  (find-file-other-window output))
+              (user-error "mmdc failed (exit %d): %s" exit-code
+                          (with-current-buffer "*mmdc-errors*"
+                            (buffer-string)))))
+        (user-error "Buffer not visiting a file"))))
+  :bind (:map mermaid-mode-map
+              ("C-c C-p" . local/mermaid-preview)))
+
+(use-package ob-mermaid
+  :ensure t
+  :after org
+  :config
+  (add-to-list 'org-src-lang-modes '("mermaid" . mermaid))
+  (with-eval-after-load 'org
+    (org-babel-do-load-languages
+     'org-babel-load-languages
+     '((mermaid . t)))))
+
 (use-package org-make-toc
   :ensure t
   :custom

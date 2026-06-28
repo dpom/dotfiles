@@ -7,6 +7,7 @@ Enable rendering and editing of Mermaid diagrams within Emacs — matching the e
 - Add `nodePackages.mermaid-cli` to Home Manager packages (system-level Nix package)
 - Configure Puppeteer/Chromium path for `mmdc` on Nix
 - Add `mermaid-mode` for editing `.mmd` files (syntax highlighting, keybindings)
+- Add preview keybinding (`C-c C-p`) in `mermaid-mode` to render buffer to SVG and display inline
 - Add `ob-mermaid` for org-babel `#+begin_src mermaid` blocks
 - Register `mermaid` in `org-babel-load-languages` under the existing `*** Diagrams` heading
 - Configure `ob-mermaid` to render to SVG via `mmdc`, mirroring the PlantUML integration pattern

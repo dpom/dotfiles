@@ -27,6 +27,7 @@
     libtool
     libxml2
     mediainfo
+    mermaid-cli
     msmtp
     neil
     nixd
