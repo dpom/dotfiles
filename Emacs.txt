@@ -2274,7 +2274,7 @@ If you omit CLOSE, it will reuse OPEN."
               (insert diagram)
               (write-region (point-min) (point-max) mmd-file nil 'silent))
             (setq exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") nil
-                                           "-i" mmd-file "-o" img-file "-q"))
+                                           "-i" mmd-file "-o" img-file "--scale" "2" "-q"))
             (if (not (and (eq exit-code 0) (file-exists-p img-file)))
                 (user-error "mmdc failed (exit %d): %s" exit-code
                             (with-current-buffer "*mmdc-errors*" (buffer-string))))
@@ -2460,6 +2460,7 @@ If you omit CLOSE, it will reuse OPEN."
           (let ((exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") t
                                          "-i" input
                                          "-o" output
+                                         "--scale" "2"
                                          "-q")))
             (if (and (eq exit-code 0) (file-exists-p output))
                 (progn
