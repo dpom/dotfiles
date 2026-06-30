@@ -16,6 +16,18 @@
 - [x] 2.2 Run `ent check-emacs` to validate init.el parenthetical balance
 - [x] 2.3 Test preview on a `.md` file with mermaid code blocks
 
-## 3. Change Completion
+## 3. Edit Mermaid in Markdown (Org-style C-c ')
 
-- [x] 3.1 Run `openspec validate emacs-markdown-mermaid-preview --type change --strict` before archiving
+- [x] 3.1 Implement `local/markdown-edit-mermaid` command with two-way flow
+- [x] 3.2 Bind `C-c '` in markdown-mode-map (opens mermaid block for editing)
+- [x] 3.3 Bind `C-c '` in mermaid-mode-map (saves back and closes)
+
+## 4. Verification
+
+- [x] 4.1 Tangle Emacs.txt → init.el
+- [x] 4.2 Test edit/save round-trip with multiple mermaid blocks
+- [x] 4.3 Test error handling (point not in mermaid block)
+
+## 5. Change Completion
+
+- [x] 5.1 Run `openspec validate emacs-markdown-mermaid-preview --type change --strict` before archiving

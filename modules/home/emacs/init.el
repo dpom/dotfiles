@@ -1495,7 +1495,72 @@ If you omit CLOSE, it will reuse OPEN."
         (kill-buffer "*pandoc-errors*"))
       (eww-open-file html-file)))
   :bind (:map markdown-mode-map
-              ("C-c C-p" . local/markdown-preview)))
+              ("C-c C-p" . local/markdown-preview)
+              ("C-c '" . local/markdown-edit-mermaid)))
+(defvar-local local/markdown-edit-parent nil
+  "Cons (PARENT-BUFFER . OPENING-LINE) for mermaid edit session.")
+(defun local/markdown-edit-mermaid ()
+  "Edit the mermaid code block at point in a dedicated mermaid-mode buffer.
+In markdown-mode: extracts the block and opens it for editing.
+In mermaid-mode (edit buffer): saves content back and closes."
+  (interactive)
+  (if (derived-mode-p 'mermaid-mode)
+      (local/mermaid-edit-done)
+    (local/markdown-edit-mermaid-start)))
+(defun local/markdown-edit-mermaid-start ()
+  "Open mermaid code block at point in a new mermaid-mode buffer."
+  (let* ((orig (point))
+         (open-pos (and (derived-mode-p 'markdown-mode)
+                        (save-excursion
+                          (re-search-backward "^```mermaid[ \t]*\n" nil t))))
+         bounds)
+    (unless open-pos
+      (user-error "Point is not in a mermaid code block"))
+    (save-excursion
+      (let* ((block-start (match-end 0))
+             (open-line (line-number-at-pos (match-beginning 0))))
+        (goto-char block-start)
+        (let ((close-pos (re-search-forward "^```[ \t]*$" nil t)))
+          (unless (and close-pos (<= block-start orig) (>= (point) orig))
+            (user-error "Point is not in a mermaid code block"))
+          (setq bounds (list open-line block-start (match-beginning 0))))))
+    (let ((content (buffer-substring-no-properties (nth 1 bounds) (nth 2 bounds)))
+          (parent-buffer (current-buffer))
+          (edit-buffer (generate-new-buffer "*mermaid-edit*")))
+      (with-current-buffer edit-buffer
+        (mermaid-mode)
+        (insert (string-trim-right content))
+        (goto-char (point-min))
+        (setq-local local/markdown-edit-parent
+                    (cons parent-buffer (nth 0 bounds))))
+      (switch-to-buffer-other-window edit-buffer)
+      (message "Edit mermaid block. %s to save and return."
+               (substitute-command-keys "\\[local/markdown-edit-mermaid]")))))
+(defun local/mermaid-edit-done ()
+  "Save mermaid edit buffer content back to the parent markdown buffer."
+  (interactive)
+  (unless local/markdown-edit-parent
+    (user-error "Not editing a mermaid block"))
+  (let* ((content (buffer-string))
+         (parent-buffer (car local/markdown-edit-parent))
+         (open-line (cdr local/markdown-edit-parent))
+         (edit-buffer (current-buffer)))
+    (with-current-buffer parent-buffer
+      (save-excursion
+        (goto-char (point-min))
+        (forward-line (1- open-line))
+        (if (looking-at "^```mermaid")
+            (progn
+              (forward-line)
+              (let ((start (point)))
+                (re-search-forward "^```[ \t]*\n")
+                (delete-region start (point))
+                (insert (string-trim-right content))
+                (insert "\n```\n")))
+          (user-error "Mermaid block no longer exists at line %d" open-line))))
+    (kill-buffer edit-buffer)
+    (switch-to-buffer parent-buffer)
+    (message "Mermaid block updated")))
 
 (use-package csv-mode
   :ensure t)
@@ -1649,7 +1714,8 @@ If you omit CLOSE, it will reuse OPEN."
                             (buffer-string)))))
         (user-error "Buffer not visiting a file"))))
   :bind (:map mermaid-mode-map
-              ("C-c C-p" . local/mermaid-preview)))
+              ("C-c C-p" . local/mermaid-preview)
+              ("C-c '" . local/markdown-edit-mermaid)))
 
 (use-package ob-mermaid
   :ensure t
