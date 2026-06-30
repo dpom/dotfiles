@@ -241,11 +241,11 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
 ;; Make shebang (#!) file executable when saved
 (add-hook 'after-save-hook #'executable-make-buffer-file-executable-if-script-p)
 
-  (setq-default large-file-warning-threshold nil)
+(setq-default large-file-warning-threshold nil)
 
-  (setq-default vc-follow-symlinks t)
+(setq-default vc-follow-symlinks t)
 
-  (setq ad-redefinition-action 'accept)
+(setq ad-redefinition-action 'accept)
 
 (setq
  ediff-make-buffers-readonly-at-startup nil
@@ -253,7 +253,7 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
  ediff-split-window-function 'split-window-horizontally
  ediff-window-setup-function 'ediff-setup-windows-plain)
 
-  (column-number-mode)
+(column-number-mode)
 
 (setq browse-url-browser-function 'browse-url-default-browser)
 
@@ -292,10 +292,10 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
  scroll-step            1
  scroll-conservatively  10000)
 
-    ;; (set-frame-parameter (selected-frame) 'alpha '(90 . 90))
-    ;; (add-to-list 'default-frame-alist '(alpha . (90 . 90)))
-    (set-frame-parameter (selected-frame) 'fullscreen 'maximized)
-    (add-to-list 'default-frame-alist '(fullscreen . maximized))
+;; (set-frame-parameter (selected-frame) 'alpha '(90 . 90))
+;; (add-to-list 'default-frame-alist '(alpha . (90 . 90)))
+(set-frame-parameter (selected-frame) 'fullscreen 'maximized)
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
 
 (use-package fontaine
   :ensure t
@@ -1451,7 +1451,51 @@ If you omit CLOSE, it will reuse OPEN."
                   (markdown-header-face-3 . 1.0)
                   (markdown-header-face-4 . 1.0)
                   (markdown-header-face-5 . 1.0)))
-    (set-face-attribute (car face) nil :weight 'normal :height (cdr face))))
+    (set-face-attribute (car face) nil :weight 'normal :height (cdr face)))
+  (defun local/markdown-preview ()
+    "Render the current Markdown buffer to HTML with mermaid diagrams and preview in eww."
+    (interactive)
+    (let* ((temp-dir (make-temp-file "md-preview-" t))
+           (svg-count 0)
+           (md-file (expand-file-name "content.md" temp-dir))
+           (html-file (expand-file-name "preview.html" temp-dir)))
+      (write-region (point-min) (point-max) md-file nil 'silent)
+      (with-temp-buffer
+        (insert-file-contents md-file)
+        (goto-char (point-min))
+        (while (re-search-forward "^```mermaid[ \t]*\n" nil t)
+          (let* ((opening-start (match-beginning 0))
+                 (diagram-start (point))
+                 (diagram-end (re-search-forward "^```[ \t]*$" nil t))
+                 mmd-file svg-file diagram exit-code)
+            (unless diagram-end
+              (user-error "Unclosed mermaid code block"))
+            (cl-incf svg-count)
+            (setq mmd-file (format "%s/diagram-%d.mmd" temp-dir svg-count)
+                  svg-file (format "%s/diagram-%d.svg" temp-dir svg-count)
+                  diagram (buffer-substring-no-properties diagram-start
+                                                          (- diagram-end 4)))
+            (with-temp-buffer
+              (insert diagram)
+              (write-region (point-min) (point-max) mmd-file nil 'silent))
+            (setq exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") nil
+                                           "-i" mmd-file "-o" svg-file "-q"))
+            (if (not (and (eq exit-code 0) (file-exists-p svg-file)))
+                (user-error "mmdc failed (exit %d): %s" exit-code
+                            (with-current-buffer "*mmdc-errors*" (buffer-string))))
+            (kill-buffer "*mmdc-errors*")
+            (delete-region opening-start (point))
+            (insert (format "\n<img src=\"%s\">\n" svg-file))))
+        (write-region (point-min) (point-max) md-file nil 'silent))
+      (let ((exit-code (call-process "pandoc" nil (get-buffer-create "*pandoc-errors*")
+                                     nil md-file "-o" html-file "-s")))
+        (if (not (and (eq exit-code 0) (file-exists-p html-file)))
+            (user-error "pandoc failed (exit %d): %s" exit-code
+                        (with-current-buffer "*pandoc-errors*" (buffer-string))))
+        (kill-buffer "*pandoc-errors*"))
+      (eww-open-file html-file)))
+  :bind (:map markdown-mode-map
+              ("C-c C-p" . local/markdown-preview)))
 
 (use-package csv-mode
   :ensure t)
@@ -1880,7 +1924,7 @@ If you omit CLOSE, it will reuse OPEN."
 (use-package git-timemachine
     :ensure t)
 
-  (use-package forge
+(use-package forge
     :ensure t
     :demand t
     :after magit
@@ -2052,7 +2096,7 @@ If you omit CLOSE, it will reuse OPEN."
   :tag "AI"
   :group 'local)
 
- (defun local/get-ollama-models ()
+(defun local/get-ollama-models ()
   "Return a list of ollama model names present in the system."
   (interactive)
  (let* ((output (shell-command-to-string "ollama list"))
@@ -2100,15 +2144,15 @@ If you omit CLOSE, it will reuse OPEN."
 
       (require 'gptel-integrations))
 
-  (use-package gptel-prompts
-    :after (gptel)
-    :vc (:url "https://github.com/jwiegley/gptel-prompts")
-    :ensure t
-    :demand t
-    :custom
-    (gptel-prompts-directory (expand-file-name "ai-prompts/" local/pers-dir))
-    :config
-    (gptel-prompts-update))
+(use-package gptel-prompts
+  :after (gptel)
+  :vc (:url "https://github.com/jwiegley/gptel-prompts")
+  :ensure t
+  :demand t
+  :custom
+  (gptel-prompts-directory (expand-file-name "ai-prompts/" local/pers-dir))
+  :config
+  (gptel-prompts-update))
 
 (use-package llm-tool-collection
   :ensure t
@@ -2514,21 +2558,21 @@ With a prefix (C-u), replace the selected region."
   (define-key pdf-view-mode-map (kbd "!") 'pdf-view-position-to-register)
   (define-key pdf-view-mode-map (kbd "@") 'pdf-view-jump-to-register))
 
-  (use-package elfeed
-    :ensure t
-    :demand t
-    :custom
-    (elfeed-db-directory
-     (expand-file-name "elfeed" emacs-cache-dir))
-     (elfeed-show-entry-switch 'display-buffer))
+(use-package elfeed
+  :ensure t
+  :demand t
+  :custom
+  (elfeed-db-directory
+   (expand-file-name "elfeed" emacs-cache-dir))
+   (elfeed-show-entry-switch 'display-buffer))
 
-  (use-package elfeed-org
-    :ensure t
-    :demand t
-    :config
-    (elfeed-org)
-    :custom
-    (rmh-elfeed-org-files (list (expand-file-name "elfeed.org" local/private-dir))))
+(use-package elfeed-org
+  :ensure t
+  :demand t
+  :config
+  (elfeed-org)
+  :custom
+  (rmh-elfeed-org-files (list (expand-file-name "elfeed.org" local/private-dir))))
 
 (use-package direnv
   :ensure t
@@ -2858,8 +2902,8 @@ With a prefix (C-u), replace the selected region."
     (global-set-key [remap describe-command] #'helpful-command)
     (global-set-key [remap describe-key] #'helpful-key))
 
-  (use-package elisp-lint
-      :ensure t)
+(use-package elisp-lint
+    :ensure t)
 
 (use-package elisp-autofmt
   :ensure t
@@ -3045,42 +3089,42 @@ Code:
         '("cljfmt" "fix" file))
   (setf (alist-get 'clojure-mode apheleia-mode-alist) 'cljfmt))
 
-    (defvar cljtest-error-regexp
-    '(cljtest "FAIL in (.+) (\\(.+\\):\\([0-9,]+\\))" 1 2))
-    (defvar kibit-error-regexp
-    '(kibit "At \\(.+\\):\\([0-9,]+\\):" 1 2))
-    (defvar eastwood-error-regexp
-    '(eastwood "Directory: \\(.+\\)" 1))
-    (defvar kondo-error-regexp
-    '(kondo "\\(.+\\):\\([0-9,]+\\):" 1 2))
+(defvar cljtest-error-regexp
+'(cljtest "FAIL in (.+) (\\(.+\\):\\([0-9,]+\\))" 1 2))
+(defvar kibit-error-regexp
+'(kibit "At \\(.+\\):\\([0-9,]+\\):" 1 2))
+(defvar eastwood-error-regexp
+'(eastwood "Directory: \\(.+\\)" 1))
+(defvar kondo-error-regexp
+'(kondo "\\(.+\\):\\([0-9,]+\\):" 1 2))
 
-    (with-eval-after-load 'compile
-    (add-to-list 'compilation-error-regexp-alist-alist cljtest-error-regexp)
-    (add-to-list 'compilation-error-regexp-alist 'cljtest)
+(with-eval-after-load 'compile
+(add-to-list 'compilation-error-regexp-alist-alist cljtest-error-regexp)
+(add-to-list 'compilation-error-regexp-alist 'cljtest)
 
-    (add-to-list 'compilation-error-regexp-alist-alist kibit-error-regexp)
-    (add-to-list 'compilation-error-regexp-alist 'kibit)
+(add-to-list 'compilation-error-regexp-alist-alist kibit-error-regexp)
+(add-to-list 'compilation-error-regexp-alist 'kibit)
 
-    (add-to-list 'compilation-error-regexp-alist-alist kondo-error-regexp)
-    (add-to-list 'compilation-error-regexp-alist 'kondo)
+(add-to-list 'compilation-error-regexp-alist-alist kondo-error-regexp)
+(add-to-list 'compilation-error-regexp-alist 'kondo)
 
-    (add-to-list 'compilation-error-regexp-alist-alist eastwood-error-regexp)
-    (add-to-list 'compilation-error-regexp-alist 'eastwood))
+(add-to-list 'compilation-error-regexp-alist-alist eastwood-error-regexp)
+(add-to-list 'compilation-error-regexp-alist 'eastwood))
 
-  (add-to-list 'safe-local-variable-values
-              '(org-babel-clojure-backend . cider))
-  (add-to-list 'safe-local-variable-values
-                '(cider-lein-parameters . "shadow-srv :headless :host localhost"))
-  (add-to-list 'safe-local-variable-values
-              '(cider-ns-refresh-after-fn . "integrant.repl/resume"))
-  (add-to-list 'safe-local-variable-values
-              '(cider-ns-refresh-before-fn . "integrant.repl/suspend"))
+(add-to-list 'safe-local-variable-values
+            '(org-babel-clojure-backend . cider))
+(add-to-list 'safe-local-variable-values
+              '(cider-lein-parameters . "shadow-srv :headless :host localhost"))
+(add-to-list 'safe-local-variable-values
+            '(cider-ns-refresh-after-fn . "integrant.repl/resume"))
+(add-to-list 'safe-local-variable-values
+            '(cider-ns-refresh-before-fn . "integrant.repl/suspend"))
 
-    (use-package html-to-hiccup
-        :ensure t
-      ;; :init
-      ;; (local/vc-install :repo "dpom/html-to-hiccup")
-    :commands html-to-hiccup-convert-region)
+(use-package html-to-hiccup
+    :ensure t
+  ;; :init
+  ;; (local/vc-install :repo "dpom/html-to-hiccup")
+:commands html-to-hiccup-convert-region)
 
 (defun local/clerk-show ()
   (interactive)
@@ -3229,9 +3273,9 @@ Reguli:
     ("j" "jump" local/jump-menu)]])
   )
 
-    (use-package yaml-mode
-      :ensure t
-      :mode "\\.ya?ml\\'")
+(use-package yaml-mode
+  :ensure t
+  :mode "\\.ya?ml\\'")
 
 (with-eval-after-load 'transient
   (transient-define-prefix local/yaml-menu ()
@@ -3269,9 +3313,9 @@ Reguli:
       (funcall encode array)))
   (advice-add 'json-encode-array :around #'local/json-array-of-numbers-on-one-line))
 
-    ;; get json path
-    (use-package json-snatcher
-        :ensure t)
+;; get json path
+(use-package json-snatcher
+    :ensure t)
 
 (use-package json-reformat
   :ensure t)
@@ -3285,62 +3329,62 @@ Reguli:
    ("j" "jump" local/jump-menu)
    ("s" "snatch" jsons-print-path)]))
 
-    (use-package vterm
-      :ensure t
-    :custom (vterm-max-scrollback 10000))
+(use-package vterm
+  :ensure t
+:custom (vterm-max-scrollback 10000))
 
-    (require 'sh-script)
-    (add-hook 'after-save 'executable-make-buffer-file-executable-if-script-p)
+(require 'sh-script)
+(add-hook 'after-save 'executable-make-buffer-file-executable-if-script-p)
 
 (with-eval-after-load 'org
   (add-to-list 'org-babel-load-languages '(shell . t)))
 
-    (use-package emacsql
-        :ensure t)
+(use-package emacsql
+    :ensure t)
 
-    (defun upcase-sql-keywords ()
-      (interactive)
-    (save-excursion
-        (dolist (keywords sql-mode-postgres-font-lock-keywords)
-        (goto-char (point-min))
-        (while (re-search-forward (car keywords) nil t)
-            (goto-char (+ 1 (match-beginning 0)))
-            (when (eql font-lock-keyword-face (face-at-point))
-            (backward-char)
-            (upcase-word 1)
-            (forward-char))))))
+(defun upcase-sql-keywords ()
+  (interactive)
+(save-excursion
+    (dolist (keywords sql-mode-postgres-font-lock-keywords)
+    (goto-char (point-min))
+    (while (re-search-forward (car keywords) nil t)
+        (goto-char (+ 1 (match-beginning 0)))
+        (when (eql font-lock-keyword-face (face-at-point))
+        (backward-char)
+        (upcase-word 1)
+        (forward-char))))))
 
-    (use-package sqlformat
-      :ensure t
-      :config
-      (setq sqlformat-command 'pgformatter)
-      (setq sqlformat-args '("-s2" "-g")))
+(use-package sqlformat
+  :ensure t
+  :config
+  (setq sqlformat-command 'pgformatter)
+  (setq sqlformat-args '("-s2" "-g")))
 
-  (defun remove-trailing-newline (point)
-  (if (= (char-before point) ?\n)
-      (- point 1)
-      point))
+(defun remove-trailing-newline (point)
+(if (= (char-before point) ?\n)
+    (- point 1)
+    point))
 
-  (defun local/sql-format (start end)
-  "Formats the selected sql `sqlformat'"
-  (interactive "r")
-  (shell-command-on-region
-  ;; beginning and end of buffer
-  start
-  (remove-trailing-newline end)
-  ;; command and parameters
-  "sqlformat -k upper -r -s -"
-  ;; output buffer
-  (current-buffer)
-  ;; replace?
-  t
-  ;; name of the error buffer
-  "*Sqlformat Error Buffer*"
-  ;; show error buffer?
-  t))
+(defun local/sql-format (start end)
+"Formats the selected sql `sqlformat'"
+(interactive "r")
+(shell-command-on-region
+;; beginning and end of buffer
+start
+(remove-trailing-newline end)
+;; command and parameters
+"sqlformat -k upper -r -s -"
+;; output buffer
+(current-buffer)
+;; replace?
+t
+;; name of the error buffer
+"*Sqlformat Error Buffer*"
+;; show error buffer?
+t))
 
-    (put 'sql-product 'safe-local-variable #'symbolp)
-    (put 'sql-sqlite-login-params 'safe-local-variable (lambda (_) t))
+(put 'sql-product 'safe-local-variable #'symbolp)
+(put 'sql-sqlite-login-params 'safe-local-variable (lambda (_) t))
 
 (with-eval-after-load 'transient
   (transient-define-prefix local/sql-menu ()
@@ -3430,17 +3474,17 @@ Reguli:
 ;;     (add-to-list 'completion-at-point-functions
 ;;                  (cape-company-to-capf #'company-restclient)))
 
-    (with-eval-after-load 'restclient
-    (defun restclient-get-var (var-name)
-        (let ((buf-name (buffer-name (current-buffer)))
-            (buf-point (point)))
-        (restclient-get-var-at-point var-name buf-name buf-point)))
+(with-eval-after-load 'restclient
+(defun restclient-get-var (var-name)
+    (let ((buf-name (buffer-name (current-buffer)))
+        (buf-point (point)))
+    (restclient-get-var-at-point var-name buf-name buf-point)))
 
-    (defun restclient-elisp-result-function (args offset)
-        (goto-char offset)
-        (let ((form (read (current-buffer))))
-        (lambda ()
-            (eval form)))))
+(defun restclient-elisp-result-function (args offset)
+    (goto-char offset)
+    (let ((form (read (current-buffer))))
+    (lambda ()
+        (eval form)))))
 
 (use-package python
   :demand t
@@ -3495,7 +3539,7 @@ Reguli:
 (use-package poetry
  :ensure t)
 
-    (put 'python-shell-interpreter 'safe-local-variable #'stringp)
+(put 'python-shell-interpreter 'safe-local-variable #'stringp)
 
 (use-package py-vterm-interaction
   :hook (python-mode . py-vterm-interaction-mode)
@@ -3628,7 +3672,7 @@ Reguli:
   (setq transient-default-level 5)
   (transient-bind-q-to-quit))
 
- (defun local/specific-menu-command ()
+(defun local/specific-menu-command ()
   "call different menus depending on what's current major mode."
   (interactive)
   (cond
@@ -3778,15 +3822,15 @@ Reguli:
 (let ((normal-keybindings '(("<escape>" "ignore") ("`" "local/surround") ("!" "bookmark-set") ("@" "bookmark-jump") ("#" "meow-comment") ("$" "repeat") ("%" "meow-query-replace") ("&" "meow-query-replace-regexp") ("'" "repeat") ("(" "meow-expand-1") (")" "meow-expand-2") ("*" "goto-last-change") ("+" "meow-expand-4") ("/" "meow-search") ("=" "indent-region") ("?" "meow-cheatsheet") ("[" "meow-beginning-of-thing") ("]" "meow-end-of-thing") ("{" "meow-expand-5") ("}" "meow-expand-3") ("\\" "local/specific-menu-command") (1 "meow-expand-1") (2 "meow-expand-2") (3 "meow-expand-3") (4 "meow-expand-4") (5 "meow-expand-5") (6 "meow-expand-6") (7 "meow-expand-7") (8 "meow-expand-8") (9 "meow-expand-9") (0 "meow-expand-0") ("-" "negative-argument") (";" "meow-reverse") ("," "meow-inner-of-thing") ("." "meow-bounds-of-thing") ("<" "meow-beginning-of-thing") (">" "meow-end-of-thing") ("a" "meow-append") ("A" "meow-open-below") ("b" "meow-back-word") ("B" "meow-back-symbol") ("c" "meow-change") ("d" "meow-delete") ("D" "meow-backward-delete") ("e" "meow-next-word") ("E" "meow-next-symbol") ("f" "meow-find") ("g" "meow-cancel-selection") ("G" "meow-grab") ("h" "meow-left") ("H" "meow-left-expand") ("i" "meow-insert") ("I" "meow-open-above") ("j" "meow-next") ("J" "meow-next-expand") ("k" "meow-prev") ("K" "meow-prev-expand") ("l" "meow-right") ("L" "meow-right-expand") ("m" "meow-join") ("n" "meow-search") ("o" "meow-block") ("O" "meow-to-block") ("p" "meow-yank") ("P" "meow-yank-pop") ("q" "meow-quit") ("Q" "meow-goto-line") ("r" "meow-replace") ("R" "meow-swap-grab") ("s" "meow-kill") ("t" "meow-till") ("u" "meow-undo") ("U" "meow-undo-in-selection") ("v" "meow-visit") ("w" "meow-mark-word") ("W" "meow-mark-symbol") ("x" "meow-line") ("X" "meow-goto-line") ("y" "meow-save") ("z" "meow-pop-selection")))
       (motion-keybindings '(("<escape>" "ignore") ("j" "meow-next") ("k" "meow-prev")))
       (leader-keybindings '((1 "meow-digit-argument") (2 "meow-digit-argument") (3 "meow-digit-argument") (4 "meow-digit-argument") (5 "meow-digit-argument") (6 "meow-digit-argument") (7 "meow-digit-argument") (8 "meow-digit-argument") (9 "meow-digit-argument") (0 "meow-digit-argument") ("?" "meow-keypad-describe-key") ("e" "dispatch: C-x C-e"))))
-  (defun meow-setup ()
-    (let ((parse-def (lambda (x)
-                       (cons (format "%s" (car x))
-                             (if (string-prefix-p "dispatch:" (cadr x))
-                                 (string-trim (substring (cadr x) 9))
-                               (intern (cadr x)))))))
-      (apply #'meow-normal-define-key (mapcar parse-def normal-keybindings))
-      (apply #'meow-motion-overwrite-define-key (mapcar parse-def motion-keybindings))
-      (apply #'meow-leader-define-key (mapcar parse-def leader-keybindings))))
+(defun meow-setup ()
+  (let ((parse-def (lambda (x)
+                     (cons (format "%s" (car x))
+                           (if (string-prefix-p "dispatch:" (cadr x))
+                               (string-trim (substring (cadr x) 9))
+                             (intern (cadr x)))))))
+    (apply #'meow-normal-define-key (mapcar parse-def normal-keybindings))
+    (apply #'meow-motion-overwrite-define-key (mapcar parse-def motion-keybindings))
+    (apply #'meow-leader-define-key (mapcar parse-def leader-keybindings))))
 )
 
 (use-package meow

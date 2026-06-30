@@ -1,8 +1,8 @@
 ## ADDED Requirements
 
-### Requirement: Markdown Preview Command
+### Requirement: Markdown Preview SHALL render markdown files with mermaid diagrams
+The system SHALL preview the current Markdown buffer as rendered HTML from within Emacs.
 Feature: markdown-preview
-Rule: The user can preview the current Markdown buffer as rendered HTML from within Emacs.
 
 #### Scenario: Preview renders markdown to HTML in eww
 - **GIVEN** a Markdown buffer visiting a `.md` file
@@ -31,8 +31,8 @@ Rule: The user can preview the current Markdown buffer as rendered HTML from wit
 - **WHEN** pandoc fails to convert the Markdown to HTML
 - **THEN** the user is shown an error message with pandoc's exit code and stderr
 
-### Requirement: Keybinding
-Rule: The preview command is bound to a key in markdown-mode.
+### Requirement: Keybinding SHALL invoke the preview command
+The preview command SHALL be bound to a key in markdown-mode.
 
 #### Scenario: Preview is bound in markdown-mode-map
 - **GIVEN** markdown-mode is active

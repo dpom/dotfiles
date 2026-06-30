@@ -2246,7 +2246,51 @@ If you omit CLOSE, it will reuse OPEN."
                   (markdown-header-face-3 . 1.0)
                   (markdown-header-face-4 . 1.0)
                   (markdown-header-face-5 . 1.0)))
-    (set-face-attribute (car face) nil :weight 'normal :height (cdr face))))
+    (set-face-attribute (car face) nil :weight 'normal :height (cdr face)))
+  (defun local/markdown-preview ()
+    "Render the current Markdown buffer to HTML with mermaid diagrams and preview in eww."
+    (interactive)
+    (let* ((temp-dir (make-temp-file "md-preview-" t))
+           (svg-count 0)
+           (md-file (expand-file-name "content.md" temp-dir))
+           (html-file (expand-file-name "preview.html" temp-dir)))
+      (write-region (point-min) (point-max) md-file nil 'silent)
+      (with-temp-buffer
+        (insert-file-contents md-file)
+        (goto-char (point-min))
+        (while (re-search-forward "^```mermaid[ \t]*\n" nil t)
+          (let* ((opening-start (match-beginning 0))
+                 (diagram-start (point))
+                 (diagram-end (re-search-forward "^```[ \t]*$" nil t))
+                 mmd-file svg-file diagram exit-code)
+            (unless diagram-end
+              (user-error "Unclosed mermaid code block"))
+            (cl-incf svg-count)
+            (setq mmd-file (format "%s/diagram-%d.mmd" temp-dir svg-count)
+                  svg-file (format "%s/diagram-%d.svg" temp-dir svg-count)
+                  diagram (buffer-substring-no-properties diagram-start
+                                                          (- diagram-end 4)))
+            (with-temp-buffer
+              (insert diagram)
+              (write-region (point-min) (point-max) mmd-file nil 'silent))
+            (setq exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") nil
+                                           "-i" mmd-file "-o" svg-file "-q"))
+            (if (not (and (eq exit-code 0) (file-exists-p svg-file)))
+                (user-error "mmdc failed (exit %d): %s" exit-code
+                            (with-current-buffer "*mmdc-errors*" (buffer-string))))
+            (kill-buffer "*mmdc-errors*")
+            (delete-region opening-start (point))
+            (insert (format "\n<img src=\"%s\">\n" svg-file))))
+        (write-region (point-min) (point-max) md-file nil 'silent))
+      (let ((exit-code (call-process "pandoc" nil (get-buffer-create "*pandoc-errors*")
+                                     nil md-file "-o" html-file "-s")))
+        (if (not (and (eq exit-code 0) (file-exists-p html-file)))
+            (user-error "pandoc failed (exit %d): %s" exit-code
+                        (with-current-buffer "*pandoc-errors*" (buffer-string))))
+        (kill-buffer "*pandoc-errors*"))
+      (eww-open-file html-file)))
+  :bind (:map markdown-mode-map
+              ("C-c C-p" . local/markdown-preview)))
 #+end_src
 
 *** csv
