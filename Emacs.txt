@@ -2234,129 +2234,6 @@ If you omit CLOSE, it will reuse OPEN."
 (setq view-read-only t)
   #+end_src
 
-*** markdown
-
-#+begin_src emacs-lisp
-(use-package markdown-mode
-  :ensure t
-  :config
-  (setq markdown-command "marked")
-  (dolist (face '((markdown-header-face-1 . 1.2)
-                  (markdown-header-face-2 . 1.1)
-                  (markdown-header-face-3 . 1.0)
-                  (markdown-header-face-4 . 1.0)
-                  (markdown-header-face-5 . 1.0)))
-    (set-face-attribute (car face) nil :weight 'normal :height (cdr face)))
-  (defun local/markdown-preview ()
-    "Render the current Markdown buffer to HTML with mermaid diagrams and preview in eww."
-    (interactive)
-    (let* ((temp-dir (make-temp-file "md-preview-" t))
-           (img-count 0)
-           (md-file (expand-file-name "content.md" temp-dir))
-           (html-file (expand-file-name "preview.html" temp-dir)))
-      (write-region (point-min) (point-max) md-file nil 'silent)
-      (with-temp-buffer
-        (insert-file-contents md-file)
-        (goto-char (point-min))
-        (while (re-search-forward "^```mermaid[ \t]*\n" nil t)
-          (let* ((opening-start (match-beginning 0))
-                 (diagram-start (point))
-                 (diagram-end (re-search-forward "^```[ \t]*$" nil t))
-                 mmd-file img-file diagram exit-code)
-            (unless diagram-end
-              (user-error "Unclosed mermaid code block"))
-            (cl-incf img-count)
-            (setq mmd-file (format "%s/diagram-%d.mmd" temp-dir img-count)
-                  img-file (format "%s/diagram-%d.png" temp-dir img-count)
-                  diagram (buffer-substring-no-properties diagram-start
-                                                          (- diagram-end 4)))
-            (with-temp-buffer
-              (insert diagram)
-              (write-region (point-min) (point-max) mmd-file nil 'silent))
-            (setq exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") nil
-                                           "-i" mmd-file "-o" img-file "--scale" "2" "-q"))
-            (if (not (and (eq exit-code 0) (file-exists-p img-file)))
-                (user-error "mmdc failed (exit %d): %s" exit-code
-                            (with-current-buffer "*mmdc-errors*" (buffer-string))))
-            (kill-buffer "*mmdc-errors*")
-            (delete-region opening-start (point))
-            (insert (format "\n<img src=\"%s\">\n" img-file))))
-        (write-region (point-min) (point-max) md-file nil 'silent))
-      (let ((exit-code (call-process "pandoc" nil (get-buffer-create "*pandoc-errors*")
-                                     nil md-file "-o" html-file "-s")))
-        (if (not (and (eq exit-code 0) (file-exists-p html-file)))
-            (user-error "pandoc failed (exit %d): %s" exit-code
-                        (with-current-buffer "*pandoc-errors*" (buffer-string))))
-        (kill-buffer "*pandoc-errors*"))
-      (eww-open-file html-file)))
-  (defvar-local local/markdown-edit-parent nil
-    "Cons (PARENT-BUFFER . OPENING-LINE) for mermaid edit session.")
-  (defun local/markdown-edit-mermaid ()
-    "Edit the mermaid code block at point in a dedicated mermaid-mode buffer.
-  In markdown-mode: extracts the block and opens it for editing.
-  In mermaid-mode (edit buffer): saves content back and closes."
-    (interactive)
-    (if (derived-mode-p 'mermaid-mode)
-        (local/mermaid-edit-done)
-      (local/markdown-edit-mermaid-start)))
-  (defun local/markdown-edit-mermaid-start ()
-    "Open mermaid code block at point in a new mermaid-mode buffer."
-    (let* ((orig (point))
-           (open-pos (and (derived-mode-p 'markdown-mode)
-                          (save-excursion
-                            (re-search-backward "^```mermaid[ \t]*\n" nil t))))
-           bounds)
-      (unless open-pos
-        (user-error "Point is not in a mermaid code block"))
-      (save-excursion
-        (let* ((block-start (match-end 0))
-               (open-line (line-number-at-pos (match-beginning 0))))
-          (goto-char block-start)
-          (let ((close-pos (re-search-forward "^```[ \t]*$" nil t)))
-            (unless (and close-pos (<= block-start orig) (>= (point) orig))
-              (user-error "Point is not in a mermaid code block"))
-            (setq bounds (list open-line block-start (match-beginning 0))))))
-      (let ((content (buffer-substring-no-properties (nth 1 bounds) (nth 2 bounds)))
-            (parent-buffer (current-buffer))
-            (edit-buffer (generate-new-buffer "*mermaid-edit*")))
-        (with-current-buffer edit-buffer
-          (mermaid-mode)
-          (insert (string-trim-right content))
-          (goto-char (point-min))
-          (setq-local local/markdown-edit-parent
-                      (cons parent-buffer (nth 0 bounds))))
-        (switch-to-buffer-other-window edit-buffer)
-        (message "Edit mermaid block. %s to save and return."
-                 (substitute-command-keys "\\[local/markdown-edit-mermaid]")))))
-  (defun local/mermaid-edit-done ()
-    "Save mermaid edit buffer content back to the parent markdown buffer."
-    (interactive)
-    (unless local/markdown-edit-parent
-      (user-error "Not editing a mermaid block"))
-    (let* ((content (buffer-string))
-           (parent-buffer (car local/markdown-edit-parent))
-           (open-line (cdr local/markdown-edit-parent))
-           (edit-buffer (current-buffer)))
-      (with-current-buffer parent-buffer
-        (save-excursion
-          (goto-char (point-min))
-          (forward-line (1- open-line))
-          (if (looking-at "^```mermaid")
-              (progn
-                (forward-line)
-                (let ((start (point)))
-                  (re-search-forward "^```[ \t]*\n")
-                  (delete-region start (point))
-                  (insert (string-trim-right content))
-                  (insert "\n```\n")))
-            (user-error "Mermaid block no longer exists at line %d" open-line))))
-      (kill-buffer edit-buffer)
-      (switch-to-buffer parent-buffer)
-      (message "Mermaid block updated")))
-  (define-key markdown-mode-map (kbd "C-c C-p") 'local/markdown-preview)
-  (define-key markdown-mode-map (kbd "C-c '") 'local/markdown-edit-mermaid))
-#+end_src
-
 *** csv
 
 #+begin_src emacs-lisp
@@ -2470,7 +2347,7 @@ If you omit CLOSE, it will reuse OPEN."
 
 *** Diagrams
 
-- PlantUML
+**** PlantUML
   #+begin_src emacs-lisp
 (use-package plantuml-mode
   :ensure t
@@ -2491,7 +2368,7 @@ If you omit CLOSE, it will reuse OPEN."
           org-plantuml-executable-path plantuml-executable-path)))
   #+end_src
 
-- graphiz
+**** Graphiz
   #+begin_src emacs-lisp
 (use-package graphviz-dot-mode
   :ensure t
@@ -2509,36 +2386,40 @@ If you omit CLOSE, it will reuse OPEN."
      '((dot . t)))))
 #+end_src
 
-- Mermaid
+**** Mermaid
+
+- mermaid-mode
   #+begin_src emacs-lisp
 (use-package mermaid-mode
   :ensure t
   :mode "\\.mmd\\'"
+  :bind (:map mermaid-mode-map
+              ("C-c C-p" . local/mermaid-preview))
   :config
   (defun local/mermaid-preview ()
-    "Render the current .mmd buffer to PNG via mmdc and display it."
+    "Render the current mermaid buffer to PNG via mmdc and display it.
+Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
     (interactive)
-    (let* ((input (buffer-file-name))
+    (let* ((input (or (buffer-file-name)
+                      (let ((f (make-temp-file "mermaid-" nil ".mmd")))
+                        (write-region (point-min) (point-max) f nil 'silent)
+                        f)))
            (output (concat (file-name-sans-extension input) ".png")))
-      (if input
-          (let ((exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") t
-                                         "-i" input
-                                         "-o" output
-                                         "--scale" "2"
-                                         "-q")))
-            (if (and (eq exit-code 0) (file-exists-p output))
-                (progn
-                  (kill-buffer "*mmdc-errors*")
-                  (find-file-other-window output))
-              (user-error "mmdc failed (exit %d): %s" exit-code
-                          (with-current-buffer "*mmdc-errors*"
-                            (buffer-string)))))
-        (user-error "Buffer not visiting a file"))))
-  :bind (:map mermaid-mode-map
-              ("C-c C-p" . local/mermaid-preview)
-              ("C-c '" . local/markdown-edit-mermaid)))
+      (let ((exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") t
+                                     "-i" input
+                                     "-o" output
+                                     "--scale" "2"
+                                     "-q")))
+        (if (and (eq exit-code 0) (file-exists-p output))
+            (progn
+              (kill-buffer "*mmdc-errors*")
+              (find-file-other-window output))
+          (user-error "mmdc failed (exit %d): %s" exit-code
+                      (with-current-buffer "*mmdc-errors*"
+                        (buffer-string))))))))
   #+end_src
 
+ - babel
   #+begin_src emacs-lisp
 (use-package ob-mermaid
   :ensure t
@@ -2549,6 +2430,17 @@ If you omit CLOSE, it will reuse OPEN."
     (org-babel-do-load-languages
      'org-babel-load-languages
      '((mermaid . t)))))
+  #+end_src
+
+- specific menu
+  #+begin_src emacs-lisp
+(with-eval-after-load 'transient
+  (transient-define-prefix local/mermaid-menu ()
+    "mermaid menu"
+    [("'" "jump source" org-edit-src-exit)
+     ("m" "edit mermaid block" local/markdown-edit-mermaid)
+     ("v" "view mermaid block" local/mermaid-preview)
+     ("j" "jump" local/jump-menu)]))
   #+end_src
 
 *** TOC
@@ -5297,6 +5189,141 @@ pip install platformio
     (add-to-list 'org-babel-load-languages '(graphql . t)))
   #+end_src
 
+*** Markdown
+
+#+begin_src emacs-lisp
+(use-package markdown-mode
+  :ensure t
+  :bind (:map markdown-mode-map
+              ("C-c C-p" . local/markdown-preview)
+              ("C-c '" . local/markdown-edit-mermaid))
+  :config
+  (setq markdown-command "marked")
+  (dolist (face '((markdown-header-face-1 . 1.2)
+                  (markdown-header-face-2 . 1.1)
+                  (markdown-header-face-3 . 1.0)
+                  (markdown-header-face-4 . 1.0)
+                  (markdown-header-face-5 . 1.0)))
+    (set-face-attribute (car face) nil :weight 'normal :height (cdr face)))
+  (defun local/markdown-preview ()
+    "Render the current Markdown buffer to HTML with mermaid diagrams and preview in eww."
+    (interactive)
+    (let* ((temp-dir (make-temp-file "md-preview-" t))
+           (img-count 0)
+           (md-file (expand-file-name "content.md" temp-dir))
+           (html-file (expand-file-name "preview.html" temp-dir)))
+      (write-region (point-min) (point-max) md-file nil 'silent)
+      (with-temp-buffer
+        (insert-file-contents md-file)
+        (goto-char (point-min))
+        (while (re-search-forward "^```mermaid[ \t]*\n" nil t)
+          (let* ((opening-start (match-beginning 0))
+                 (diagram-start (point))
+                 (diagram-end (re-search-forward "^```[ \t]*$" nil t))
+                 mmd-file img-file diagram exit-code)
+            (unless diagram-end
+              (user-error "Unclosed mermaid code block"))
+            (cl-incf img-count)
+            (setq mmd-file (format "%s/diagram-%d.mmd" temp-dir img-count)
+                  img-file (format "%s/diagram-%d.png" temp-dir img-count)
+                  diagram (buffer-substring-no-properties diagram-start
+                                                          (- diagram-end 4)))
+            (with-temp-buffer
+              (insert diagram)
+              (write-region (point-min) (point-max) mmd-file nil 'silent))
+            (setq exit-code (call-process "mmdc" nil (get-buffer-create "*mmdc-errors*") nil
+                                           "-i" mmd-file "-o" img-file "--scale" "2" "-q"))
+            (if (not (and (eq exit-code 0) (file-exists-p img-file)))
+                (user-error "mmdc failed (exit %d): %s" exit-code
+                            (with-current-buffer "*mmdc-errors*" (buffer-string))))
+            (kill-buffer "*mmdc-errors*")
+            (delete-region opening-start (point))
+            (insert (format "\n<img src=\"%s\">\n" img-file))))
+        (write-region (point-min) (point-max) md-file nil 'silent))
+      (let ((exit-code (call-process "pandoc" nil (get-buffer-create "*pandoc-errors*")
+                                     nil md-file "-o" html-file "-s")))
+        (if (not (and (eq exit-code 0) (file-exists-p html-file)))
+            (user-error "pandoc failed (exit %d): %s" exit-code
+                        (with-current-buffer "*pandoc-errors*" (buffer-string))))
+        (kill-buffer "*pandoc-errors*"))
+      (eww-open-file html-file)))
+  (defvar-local local/markdown-edit-parent nil
+    "Cons (PARENT-BUFFER . OPENING-LINE) for mermaid edit session.")
+  (defun local/markdown-edit-mermaid ()
+    "Edit the mermaid code block at point in a dedicated mermaid-mode buffer.
+  In markdown-mode: extracts the block and opens it for editing.
+  In mermaid-mode (edit buffer): saves content back and closes."
+    (interactive)
+    (if (derived-mode-p 'mermaid-mode)
+        (local/mermaid-edit-done)
+      (local/markdown-edit-mermaid-start)))
+  (defun local/markdown-edit-mermaid-start ()
+    "Open mermaid code block at point in a new mermaid-mode buffer."
+    (let* ((orig (point))
+           (open-pos (and (derived-mode-p 'markdown-mode)
+                          (save-excursion
+                            (re-search-backward "^```mermaid[ \t]*\n" nil t))))
+           bounds)
+      (unless open-pos
+        (user-error "Point is not in a mermaid code block"))
+      (save-excursion
+        (let* ((block-start (match-end 0))
+               (open-line (line-number-at-pos (match-beginning 0))))
+          (goto-char block-start)
+          (let ((close-pos (re-search-forward "^```[ \t]*$" nil t)))
+            (unless (and close-pos (<= block-start orig) (>= (point) orig))
+              (user-error "Point is not in a mermaid code block"))
+            (setq bounds (list open-line block-start (match-beginning 0))))))
+      (let ((content (buffer-substring-no-properties (nth 1 bounds) (nth 2 bounds)))
+            (parent-buffer (current-buffer))
+            (edit-buffer (generate-new-buffer "*mermaid-edit*")))
+        (with-current-buffer edit-buffer
+          (mermaid-mode)
+          (insert (string-trim-right content))
+          (goto-char (point-min))
+          (setq-local local/markdown-edit-parent
+                      (cons parent-buffer (nth 0 bounds))))
+        (switch-to-buffer-other-window edit-buffer)
+        (message "Edit mermaid block. %s to save and return."
+                 (substitute-command-keys "\\[local/markdown-edit-mermaid]")))))
+  (defun local/mermaid-edit-done ()
+    "Save mermaid edit buffer content back to the parent markdown buffer."
+    (interactive)
+    (unless local/markdown-edit-parent
+      (user-error "Not editing a mermaid block"))
+    (let* ((content (buffer-string))
+           (parent-buffer (car local/markdown-edit-parent))
+           (open-line (cdr local/markdown-edit-parent))
+           (edit-buffer (current-buffer)))
+      (with-current-buffer parent-buffer
+        (save-excursion
+          (goto-char (point-min))
+          (forward-line (1- open-line))
+          (if (looking-at "^```mermaid")
+              (progn
+                (forward-line)
+                (let ((start (point)))
+                  (re-search-forward "^```[ \t]*\n")
+                  (delete-region start (point))
+                  (insert (string-trim-right content))
+                  (insert "\n```\n")))
+            (user-error "Mermaid block no longer exists at line %d" open-line))))
+      (kill-buffer edit-buffer)
+      (switch-to-buffer parent-buffer)
+      (message "Mermaid block updated"))))
+#+end_src
+
+**** specific menu
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'transient
+  (transient-define-prefix local/markdown-menu ()
+    "markdown menu"
+    [("'" "edit mermaid block" local/markdown-edit-mermaid)
+     ("v" "preview" local/markdown-preview)
+     ("j" "jump" local/jump-menu)]))
+#+end_src
+
 ** References
 
   1. https://www.flycheck.org/en/latest/user/flycheck-versus-flymake.html
@@ -5378,6 +5405,8 @@ Keybindings occupy a central place in emacs optimization. I'd like a coherent, e
    ((string-equal major-mode "js-mode") (local/js-menu))
    ((string-equal major-mode "json-mode") (local/js-menu))
    ((string-equal major-mode "yaml-mode") (local/yaml-menu))
+   ((string-equal major-mode "markdown-mode") (local/markdown-menu))
+   ((string-equal major-mode "mermaid-mode") (local/mermaid-menu))
 
    ;; if nothing match, use generic prog menu
    (t (local/prog-menu))))

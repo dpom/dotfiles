@@ -19,14 +19,14 @@ Never create commits, branches, or merges unless the user explicitly asks.
 
 ## Gates
 
-| Moment | Gate |
-| --- | --- |
-| Before propose | Prefer `main`; if not, warn and ask whether to continue intentionally. |
+| Moment          | Gate                                                                                                                                 |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| Before propose  | Prefer `main`; if not, warn and ask whether to continue intentionally.                                                               |
 | During continue | Before creating the next artifact, ask the user to commit completed artifact changes or explicitly continue without that checkpoint. |
-| After propose | Ask the user to commit proposal artifacts; offer to create a PR branch for review. |
-| Before apply | Confirm the proposal change is committed on `main`; then apply may run from `main`, a branch, or a worktree. |
-| Before archive | Stop unless implementation is merged back to `main` and archive is running from `main`. |
-| After archive | Ask the user to commit archive/spec sync changes. |
+| After propose   | Ask the user to commit proposal artifacts; offer to create a PR branch for review.                                                   |
+| Before apply    | Confirm the proposal change is committed on `main`; then apply may run from `main`, a branch, or a worktree.                         |
+| Before archive  | Stop unless implementation is merged back to `main` and archive is running from `main`.                                              |
+| After archive   | Ask the user to commit archive/spec sync changes.                                                                                    |
 
 ## Required Checks
 
