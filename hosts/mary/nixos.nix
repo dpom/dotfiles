@@ -26,7 +26,7 @@
       "192.168.0.110" = [ "remarkable"];
     };
     # Optional: Open the  ollama default port if you want to access it from other devices
-    firewall.allowedTCPPorts = [ 11434 ];
+      firewall.allowedTCPPorts = [ 8000 ];
   };
   
   # dpom-docker.enable = true;
@@ -145,8 +145,8 @@
     disableBatteryTempCheck = false;
   };
   
-  dpom-ollama.enable = true;
-  dpom-ollama.acceleration = "rocm";
+  dpom-vllm.enable = true;
+  dpom-vllm.acceleration = "rocm";
   
   programs.nix-ld.enable = true;
   

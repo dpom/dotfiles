@@ -6,7 +6,8 @@
 
 (let* ((bin-path (file-name-directory (directory-file-name (if load-file-name load-file-name buffer-file-name))))
        (admin-path (file-name-directory (directory-file-name bin-path)))
-       (org-files (directory-files admin-path nil "\\.org$")))
+       (org-files (append (directory-files admin-path nil "\\.org$")
+                          (directory-files admin-path nil "\\.txt$"))))
   (message "admin path: %s" admin-path)
   (dolist (org-file org-files)
     (unless (member org-file '("README.org" "Notebook.org"))
