@@ -6,9 +6,10 @@
 }:
 let
   cfg = config.dpom-vllm;
+  vllmImage = "vllm/vllm-openai:rocm";
 in {
   options.dpom-vllm = {
-    enable = lib.mkEnableOption "vLLM inference server with GPU acceleration support";
+    enable = lib.mkEnableOption "vLLM container with GPU acceleration support";
     acceleration = lib.mkOption {
       type = lib.types.nullOr (lib.types.enum [ "rocm" ]);
       default = null;
@@ -17,7 +18,7 @@ in {
     rocmGfxOverride = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
-      description = "Optional GFX version override for ROCm (e.g. 11.0.0). Leave null for native ISA.";
+      description = "Optional GFX version override for ROCm (e.g. 11.0.0).";
     };
     model = lib.mkOption {
       type = lib.types.str;
@@ -37,45 +38,41 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
-    nixpkgs.config.permittedInsecurePackages = [
-      "python3.13-vllm-0.16.0"
-    ];
-
-    users.users.vllm = {
-      isSystemUser = true;
-      group = "vllm";
-      home = "/var/lib/vllm";
-      createHome = true;
-    };
-    users.groups.vllm = {};
+    dpom-podman.enable = true;
 
     systemd.tmpfiles.rules = [
-      "d /var/lib/vllm 0755 vllm vllm -"
+      "d /var/lib/vllm 0755 root root -"
     ];
 
-    systemd.services.vllm = {
-      description = "vLLM LLM Inference Server";
-      after = [ "network-online.target" ];
-      wants = [ "network-online.target" ];
-      wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        Type = "simple";
-        User = "vllm";
-        Group = "vllm";
-        ExecStart = "${lib.getExe' pkgs.vllm "vllm"} serve ${cfg.model} --port ${toString cfg.port} --host 127.0.0.1 ${lib.escapeShellArgs cfg.extraArgs}";
-        Restart = "on-failure";
-        RestartSec = "5";
-        Environment = [
-          "HF_HOME=/var/lib/vllm"
-          "XDG_CACHE_HOME=/var/lib/vllm"
-        ];
-      } // lib.optionalAttrs (cfg.acceleration == "rocm" && cfg.rocmGfxOverride != null) {
-        Environment = (builtins.filter (e: !lib.hasPrefix "HSA_OVERRIDE_GFX_VERSION=" e) [
-          "HF_HOME=/var/lib/vllm"
-          "XDG_CACHE_HOME=/var/lib/vllm"
-        ]) ++ [ "HSA_OVERRIDE_GFX_VERSION=${cfg.rocmGfxOverride}" ];
+    virtualisation.oci-containers = {
+      backend = "podman";
+      containers.vllm = {
+        image = vllmImage;
+        autoStart = true;
+        ports = [ "${toString cfg.port}:8000" ];
+        volumes = [ "/var/lib/vllm:/root/.cache/huggingface" ];
+        extraOptions =
+          [ "--pull=newer" ]
+          ++ lib.optionals (cfg.acceleration == "rocm") [
+            "--device=/dev/kfd"
+            "--device=/dev/dri"
+            "--group-add=video"
+          ];
+        environment = {
+          HUGGING_FACE_HUB_CACHE = "/root/.cache/huggingface";
+        } // lib.optionalAttrs (cfg.acceleration == "rocm" && cfg.rocmGfxOverride != null) {
+          HSA_OVERRIDE_GFX_VERSION = cfg.rocmGfxOverride;
+        };
+        cmd = lib.optionals (cfg.model != "") ([
+          "--model" cfg.model
+        ]) ++ [
+          "--port" "8000"
+          "--host" "0.0.0.0"
+        ] ++ cfg.extraArgs;
       };
     };
+
+    networking.firewall.allowedTCPPorts = [ cfg.port ];
 
     hardware.graphics = lib.mkIf (cfg.acceleration == "rocm") {
       enable = true;

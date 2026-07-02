@@ -25,8 +25,7 @@
       "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
       "192.168.0.110" = [ "remarkable"];
     };
-    # Optional: Open the  ollama default port if you want to access it from other devices
-      firewall.allowedTCPPorts = [ 8000 ];
+      # vLLM port is managed by dpom-vllm module
   };
   
   # dpom-docker.enable = true;
