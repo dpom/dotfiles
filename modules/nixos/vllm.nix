@@ -37,6 +37,10 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    nixpkgs.config.permittedInsecurePackages = [
+      "python3.13-vllm-0.16.0"
+    ];
+
     users.users.vllm = {
       isSystemUser = true;
       group = "vllm";
@@ -58,7 +62,7 @@ in {
         Type = "simple";
         User = "vllm";
         Group = "vllm";
-        ExecStart = "${lib.getExe pkgs.vllm} serve ${cfg.model} --port ${toString cfg.port} --host 127.0.0.1 ${lib.escapeShellArgs cfg.extraArgs}";
+        ExecStart = "${lib.getExe' pkgs.vllm "vllm"} serve ${cfg.model} --port ${toString cfg.port} --host 127.0.0.1 ${lib.escapeShellArgs cfg.extraArgs}";
         Restart = "on-failure";
         RestartSec = "5";
         Environment = [
