@@ -9,23 +9,23 @@
   dpom-xserver.enable = true;
   dpom-cdrom.enable = true;
   dpom-proton.enable = true;
-    # Bootloader.
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-    # boot.loader.limine.maxGenerations = 10;
-    networking = {
-      hostName = "bob"; # Define your hostname.
+  # Bootloader.
+  boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
+  # boot.loader.limine.maxGenerations = 10;
+  networking = {
+    hostName = "bob"; # Define your hostname.
   
-      # Enable networking
-      networkmanager.enable = true;
-      hosts = {
-        "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
-        "192.168.i0.110" = [ "remarkable"];
-      };
-      # allow org-roam web ui
-      firewall.allowedTCPPorts = [ 35901 ];
-  
+    # Enable networking
+    networkmanager.enable = true;
+    hosts = {
+      "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+      "192.168.i0.110" = [ "remarkable"];
     };
+    # allow org-roam web ui
+    firewall.allowedTCPPorts = [ 35901 ];
+  
+  };
   
   users.users.git = {
     isNormalUser = true;
