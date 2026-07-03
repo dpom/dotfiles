@@ -6,7 +6,7 @@
 }:
 let
   cfg = config.dpom-vllm;
-  vllmImage = "vllm/vllm-openai:rocm";
+  vllmImage = "vllm/vllm-openai-rocm:nightly";
 in {
   options.dpom-vllm = {
     enable = lib.mkEnableOption "vLLM container with GPU acceleration support";
@@ -39,6 +39,7 @@ in {
 
   config = lib.mkIf cfg.enable {
     dpom-podman.enable = true;
+    sops.secrets.hf_token = {};
 
     systemd.tmpfiles.rules = [
       "d /var/lib/vllm 0755 root root -"
@@ -57,9 +58,11 @@ in {
             "--device=/dev/kfd"
             "--device=/dev/dri"
             "--group-add=video"
-          ];
+          ]
+          ++ [ "--env-file" config.sops.secrets.hf_token.path ];
         environment = {
           HUGGING_FACE_HUB_CACHE = "/root/.cache/huggingface";
+          HF_XET_HIGH_PERFORMANCE = "1";
         } // lib.optionalAttrs (cfg.acceleration == "rocm" && cfg.rocmGfxOverride != null) {
           HSA_OVERRIDE_GFX_VERSION = cfg.rocmGfxOverride;
         };

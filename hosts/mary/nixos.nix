@@ -144,9 +144,11 @@
     disableBatteryTempCheck = false;
   };
   
-  dpom-vllm.enable = true;
-  dpom-vllm.acceleration = "rocm";
-  
+  dpom-ollama.enable = true;
+  dpom-ollama.acceleration = "rocm";
+  dpom-ollama.loadModels = [
+    "llama3.2:3b"
+  ];
   programs.nix-ld.enable = true;
   
   # Activează virtualizarea

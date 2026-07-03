@@ -490,12 +490,14 @@ hardware.fw-fanctrl = {
 
 #+end_src
 
-**** vllm
+**** ollama
 
 #+begin_src nix :noweb-ref mary-nixos
-dpom-vllm.enable = true;
-dpom-vllm.acceleration = "rocm";
-
+dpom-ollama.enable = true;
+dpom-ollama.acceleration = "rocm";
+dpom-ollama.loadModels = [
+  "llama3.2:3b"
+];
 #+end_src
 
 **** nix-ld
@@ -1237,7 +1239,7 @@ in {
 }:
 let
   cfg = config.dpom-vllm;
-  vllmImage = "vllm/vllm-openai:rocm";
+  vllmImage = "vllm/vllm-openai-rocm:nightly";
 in {
   options.dpom-vllm = {
     enable = lib.mkEnableOption "vLLM container with GPU acceleration support";
@@ -1270,6 +1272,7 @@ in {
 
   config = lib.mkIf cfg.enable {
     dpom-podman.enable = true;
+    sops.secrets.hf_token = {};
 
     systemd.tmpfiles.rules = [
       "d /var/lib/vllm 0755 root root -"
@@ -1288,9 +1291,11 @@ in {
             "--device=/dev/kfd"
             "--device=/dev/dri"
             "--group-add=video"
-          ];
+          ]
+          ++ [ "--env-file" config.sops.secrets.hf_token.path ];
         environment = {
           HUGGING_FACE_HUB_CACHE = "/root/.cache/huggingface";
+          HF_XET_HIGH_PERFORMANCE = "1";
         } // lib.optionalAttrs (cfg.acceleration == "rocm" && cfg.rocmGfxOverride != null) {
           HSA_OVERRIDE_GFX_VERSION = cfg.rocmGfxOverride;
         };
@@ -3185,7 +3190,11 @@ let
       fi
 
       echo "Generating $CONFIG_FILE..."
-      jq --argjson models "$MODELS_JSON" ".provider.\"$PROVIDER\".models = \$models" "${opencodeTemplate}" > "$CONFIG_FILE"
+      FIRST_MODEL=$(echo "$MODELS_JSON" | jq -r 'keys[0] // ""')
+      jq --arg model "$FIRST_MODEL" --argjson models "$MODELS_JSON" '
+        .model = (if $model != "" then $model else .model end)
+        | .provider."'"$PROVIDER"'".models = $models
+      ' "${opencodeTemplate}" > "$CONFIG_FILE"
 
       echo "Done! Configuration saved to $CONFIG_FILE."
     '';

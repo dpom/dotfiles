@@ -63,7 +63,11 @@ let
       fi
 
       echo "Generating $CONFIG_FILE..."
-      jq --argjson models "$MODELS_JSON" ".provider.\"$PROVIDER\".models = \$models" "${opencodeTemplate}" > "$CONFIG_FILE"
+      FIRST_MODEL=$(echo "$MODELS_JSON" | jq -r 'keys[0] // ""')
+      jq --arg model "$FIRST_MODEL" --argjson models "$MODELS_JSON" '
+        .model = (if $model != "" then $model else .model end)
+        | .provider."'"$PROVIDER"'".models = $models
+      ' "${opencodeTemplate}" > "$CONFIG_FILE"
 
       echo "Done! Configuration saved to $CONFIG_FILE."
     '';
