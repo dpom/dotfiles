@@ -25,7 +25,8 @@
       "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
       "192.168.0.110" = [ "remarkable"];
     };
-      # vLLM port is managed by dpom-vllm module
+    # Optional: Open the  ollama default port if you want to access it from other devices
+    firewall.allowedTCPPorts = [ 11434 ];
   };
   
   # dpom-docker.enable = true;
@@ -146,9 +147,6 @@
   
   dpom-ollama.enable = true;
   dpom-ollama.acceleration = "rocm";
-  dpom-ollama.loadModels = [
-    "llama3.2:3b"
-  ];
   programs.nix-ld.enable = true;
   
   # Activează virtualizarea

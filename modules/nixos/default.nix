@@ -28,7 +28,6 @@
     ./nvidia.nix
     ./greetd.nix
     ./ollama.nix
-    ./vllm.nix
     ./podman.nix
     ./proton.nix
     ./solaar.nix

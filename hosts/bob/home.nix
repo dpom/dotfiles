@@ -13,7 +13,6 @@
   dpom-kitty.enable = true;
   dpom-office.enable = true;
   dpom-rofi.enable = true;
-  dpom-opencode.enable = true;
 
   home.packages = with pkgs; [
     calibre

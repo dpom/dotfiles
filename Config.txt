@@ -318,7 +318,8 @@ networking = {
     "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
     "192.168.0.110" = [ "remarkable"];
   };
-    # vLLM port is managed by dpom-vllm module
+    # Optional: Open the  ollama default port if you want to access it from other devices
+    firewall.allowedTCPPorts = [ 11434 ];
 };
 
 #+end_src
@@ -495,9 +496,8 @@ hardware.fw-fanctrl = {
 #+begin_src nix :noweb-ref mary-nixos
 dpom-ollama.enable = true;
 dpom-ollama.acceleration = "rocm";
-dpom-ollama.loadModels = [
-  "llama3.2:3b"
-];
+
+
 #+end_src
 
 **** nix-ld
@@ -771,7 +771,6 @@ services.greenclip.enable = true;
   dpom-kitty.enable = true;
   dpom-office.enable = true;
   dpom-rofi.enable = true;
-  dpom-opencode.enable = true;
 
   home.packages = with pkgs; [
     calibre
@@ -894,7 +893,6 @@ imports = [
   ./nvidia.nix
   ./greetd.nix
   ./ollama.nix
-  ./vllm.nix
   ./podman.nix
   ./proton.nix
   ./solaar.nix
@@ -1211,104 +1209,6 @@ in {
         OLLAMA_NUM_GPU = "35";
       };
     };
-
-    hardware.graphics = lib.mkIf (cfg.acceleration == "rocm") {
-      enable = true;
-      extraPackages = with pkgs; [
-        rocmPackages.clr.icd
-        rocmPackages.clr
-        rocmPackages.rocminfo
-      ];
-    };
-
-    environment.systemPackages = lib.mkIf (cfg.acceleration == "rocm") (with pkgs; [
-      rocmPackages.rocminfo
-    ]);
-  };
-}
-#+end_src
-
-** vLLM
-
-#+begin_src nix :tangle modules/nixos/vllm.nix
-{
-  config,
-  lib,
-  pkgs,
-  ...
-}:
-let
-  cfg = config.dpom-vllm;
-  vllmImage = "vllm/vllm-openai-rocm:nightly";
-in {
-  options.dpom-vllm = {
-    enable = lib.mkEnableOption "vLLM container with GPU acceleration support";
-    acceleration = lib.mkOption {
-      type = lib.types.nullOr (lib.types.enum [ "rocm" ]);
-      default = null;
-      description = "GPU acceleration backend for vLLM (null = CPU, rocm = AMD GPU)";
-    };
-    rocmGfxOverride = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      description = "Optional GFX version override for ROCm (e.g. 11.0.0).";
-    };
-    model = lib.mkOption {
-      type = lib.types.str;
-      default = "";
-      description = "Model to serve (e.g. Qwen/Qwen2.5-14B-Instruct-GPTQ-Int4)";
-    };
-    port = lib.mkOption {
-      type = lib.types.port;
-      default = 8000;
-      description = "Port for the OpenAI-compatible API";
-    };
-    extraArgs = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ "--gpu-memory-utilization" "0.90" ];
-      description = "Additional CLI arguments passed to vllm serve";
-    };
-  };
-
-  config = lib.mkIf cfg.enable {
-    dpom-podman.enable = true;
-    sops.secrets.hf_token = {};
-
-    systemd.tmpfiles.rules = [
-      "d /var/lib/vllm 0755 root root -"
-    ];
-
-    virtualisation.oci-containers = {
-      backend = "podman";
-      containers.vllm = {
-        image = vllmImage;
-        autoStart = true;
-        ports = [ "${toString cfg.port}:8000" ];
-        volumes = [ "/var/lib/vllm:/root/.cache/huggingface" ];
-        extraOptions =
-          [ "--pull=newer" ]
-          ++ lib.optionals (cfg.acceleration == "rocm") [
-            "--device=/dev/kfd"
-            "--device=/dev/dri"
-            "--group-add=video"
-          ]
-          ++ [ "--env-file" config.sops.secrets.hf_token.path ];
-        environment = {
-          HUGGING_FACE_HUB_CACHE = "/root/.cache/huggingface";
-          HF_XET_HIGH_PERFORMANCE = "1";
-        } // lib.optionalAttrs (cfg.acceleration == "rocm" && cfg.rocmGfxOverride != null) {
-          HSA_OVERRIDE_GFX_VERSION = cfg.rocmGfxOverride;
-        };
-        cmd = lib.optionals (cfg.model != "") ([
-          "--model" cfg.model
-        ]) ++ [
-          "--port" "8000"
-          "--host" "0.0.0.0"
-        ] ++ cfg.extraArgs;
-      };
-    };
-
-    networking.firewall.allowedTCPPorts = [ cfg.port ];
 
     hardware.graphics = lib.mkIf (cfg.acceleration == "rocm") {
       enable = true;
@@ -3132,69 +3032,49 @@ sistem de notificare specific sway
   ...
 }:
 let
-  host = config.networking.hostName;
-  isMary = host == "mary";
-  isBob = host == "bob";
+  # 1. Definim șablonul de bază fără modelele hardcodate
+  opencodeTemplate = pkgs.writeText "opencode-template.json" ''
+    {
+      "model": "ollama/qwen3.6:27b",
+      "provider": {
+        "ollama": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Ollama (local)",
+          "options": {
+            "baseURL": "http://localhost:11434/v1"
+          },
+          "models": {}
+        }
+      }
+    }
+  '';
 
-  apiBase = if isMary then "http://localhost:8000/v1" else "http://localhost:11434/v1";
-  providerName = if isMary then "vLLM (local)" else "Ollama (local)";
-  providerId = if isMary then "vllm" else "ollama";
-
-  opencodeTemplate = pkgs.writeText "opencode-template.json" (builtins.toJSON {
-    model = if isMary then "local/model" else "ollama/qwen3.6:27b";
-    provider = {
-      "${providerId}" = {
-        npm = "@ai-sdk/openai-compatible";
-        name = providerName;
-        options = {
-          baseURL = apiBase;
-        };
-        models = {};
-      };
-    };
-  });
-
+  # 2. Creăm scriptul care interoghează Ollama și generează configurația finală
   generateOpencodeConfig = pkgs.writeShellApplication {
     name = "generate-opencode-config";
     runtimeInputs = with pkgs; [ curl jq ];
     text = ''
       CONFIG_DIR="''${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
       CONFIG_FILE="$CONFIG_DIR/opencode.json"
-      PROVIDER="${providerId}"
-      API_BASE="${apiBase}"
 
       mkdir -p "$CONFIG_DIR"
 
-      if [ "$PROVIDER" = "ollama" ]; then
-        echo "Querying Ollama for local models..."
-        if curl -s -f "http://localhost:11434/api/tags" > /dev/null; then
-          MODELS_JSON=$(curl -s "http://localhost:11434/api/tags" | jq -c '
+      echo "Querying Ollama for local models..."
+      if curl -s -f http://localhost:11434/api/tags > /dev/null; then
+          # Transformă array-ul de modele de la Ollama în obiectul așteptat de opencode
+          # Alocă automat o limită implicită de context pentru fiecare model găsit
+          MODELS_JSON=$(curl -s http://localhost:11434/api/tags | jq -c '
             reduce .models[] as $m ( {}; .[$m.name] = { "name": $m.name, "limit": { "context": 65536, "output": 32768 } } )
           ')
           echo "Found models, updating config."
-        else
+      else
           echo "Warning: Ollama is not running or unreachable. Using empty model list."
           MODELS_JSON="{}"
-        fi
-      else
-        echo "Querying vLLM for available models..."
-        if curl -s -f "$API_BASE/models" > /dev/null; then
-          MODELS_JSON=$(curl -s "$API_BASE/models" | jq -c '
-            reduce .data[] as $m ( {}; .[$m.id] = { "name": $m.id, "limit": { "context": 65536, "output": 32768 } } )
-          ')
-          echo "Found models, updating config."
-        else
-          echo "Warning: vLLM is not running or unreachable. Using empty model list."
-          MODELS_JSON="{}"
-        fi
       fi
 
       echo "Generating $CONFIG_FILE..."
-      FIRST_MODEL=$(echo "$MODELS_JSON" | jq -r 'keys[0] // ""')
-      jq --arg model "$FIRST_MODEL" --argjson models "$MODELS_JSON" '
-        .model = (if $model != "" then $model else .model end)
-        | .provider."'"$PROVIDER"'".models = $models
-      ' "${opencodeTemplate}" > "$CONFIG_FILE"
+      # Injectează obiectul generat în șablonul de bază
+      jq --argjson models "$MODELS_JSON" '.provider.ollama.models = $models' "${opencodeTemplate}" > "$CONFIG_FILE"
 
       echo "Done! Configuration saved to $CONFIG_FILE."
     '';
@@ -3207,10 +3087,13 @@ in
   };
 
   config = lib.mkIf config.dpom-opencode.enable {
+    # Păstrăm activarea programului (dacă instalează pachetul), dar eliminăm `programs.opencode.settings`
     programs.opencode.enable = true;
 
+    # Adăugăm comanda în PATH pentru a o putea rula și manual oricând descarci un model nou
     home.packages = [ generateOpencodeConfig ];
 
+    # Rulăm scriptul automat la fiecare aplicare a configurației Home Manager
     home.activation.generateOpencode = lib.hm.dag.entryAfter ["writeBoundary"] ''
       $DRY_RUN_CMD ${generateOpencodeConfig}/bin/generate-opencode-config
     '';
