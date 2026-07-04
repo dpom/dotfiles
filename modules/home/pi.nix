@@ -1,5 +1,23 @@
 { config, pkgs, lib, ... }:
 let
+  pi-acp = pkgs.buildNpmPackage rec {
+    pname = "pi-acp";
+    version = "0.0.31";
+    src = pkgs.fetchFromGitHub {
+      owner = "svkozak";
+      repo = "pi-acp";
+      rev = "v${version}";
+      hash = "sha256-bM3V/3fxkY2Ib+OyfT82StIIRSLXGDuYUbt1CZKpTuo=";
+    };
+    npmDepsHash = "sha256-qN+b/tMbnJLkWjotl3XrA0nfZ3KT/mT6gM+n3Qiz8Wk=";
+    dontStrip = true;
+    nativeBuildInputs = with pkgs; [ makeBinaryWrapper ];
+    buildInputs = with pkgs; [ nodejs_24 ];
+    env.NIX_MAIN_PROGRAM = "pi-acp";
+    env.NIX_NPM_FETCHER_VERSION = "1";
+    meta.mainProgram = "pi-acp";
+  };
+
   pi-coding-agent = pkgs.buildNpmPackage rec {
     pname = "pi-coding-agent";
     version = "0.80.3";
@@ -60,7 +78,7 @@ in
     dpom-pi.enable = lib.mkEnableOption "Add pi coding agent";
   };
   config = lib.mkIf config.dpom-pi.enable {
-    home.packages = [ pi-coding-agent ];
+    home.packages = [ pi-coding-agent pi-acp ];
     home.file.".pi/agent/models.json" = {
       text = builtins.toJSON {
         providers = {
