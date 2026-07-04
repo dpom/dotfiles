@@ -4,7 +4,7 @@
 
 Install and configure the pi coding agent CLI (`@earendil-works/pi-coding-agent`) at a specific version on NixOS hosts via Home Manager.
 
-## Requirements
+## ADDED Requirements
 
 ### Requirement: Pi CLI availability
 The system SHALL make the `pi` binary available in the user's PATH when the module is enabled.

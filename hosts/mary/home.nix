@@ -16,6 +16,7 @@
   dpom-swaync.enable = true;
   dpom-opencode.enable = true;
   dpom-gemini.enable =true;
+  dpom-pi.enable = true;
 
   systemd.user.targets.tray = {
     Unit = {

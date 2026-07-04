@@ -32,6 +32,7 @@
     ./i3.nix
     ./kitty
     ./office.nix
+    ./pi.nix
     ./rofi.nix
     ./sway.nix
     ./swaync.nix
