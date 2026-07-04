@@ -2196,17 +2196,17 @@ If FULL is not nil, return all source files."
 
             (goto-char (point-min))
             (insert (format "\n* file %s (primary)\n" library-path))
-            (insert "#+begin_src emacs-lisp\n")
+            (insert (concat "#+begin" "_src emacs-lisp\n"))
             (insert-file library-path)
             (goto-char (point-max))
-            (insert "\n#+end_src\n")
+            (insert (concat "\n#+end" "_src\n"))
             (when FULL
               (dolist (file (remove library-path all-elisp))
                 (insert (format "\n* file %s\n" file))
-                (insert "#+begin_src emacs-lisp\n")
+                (insert (concat "#+begin" "_src emacs-lisp\n"))
                 (insert-file file)
                 (goto-char (point-max))
-                (insert "\n#+end_src\n")))
+                (insert (concat "\n#+end" "_src\n"))))
             (buffer-string)))
       (warn "PACKAGE must be the package name as a string.")))
 
@@ -2456,11 +2456,11 @@ With a prefix (C-u), replace the selected region."
     (message "Please select a text first!"))))
 
 (defcustom local/response-format
-  "Format all the response exclusively in org-mode syntax
-- Use titles with asterisks (*, **, ***).
-- Use code blocks like #+begin_src clojure ... #+end_src for examples.
-- Use Org tables for performance comparisons if applicable.
-- Put keywords between tildes (~code~)."
+  (concat "Format all the response exclusively in org-mode syntax\n"
+          "- Use titles with asterisks (*, **, ***).\n"
+          "- Use code blocks like " (format "#+begin%src clojure ... #+end%src" "_" "_") " for examples.\n"
+          "- Use Org tables for performance comparisons if applicable.\n"
+          "- Put keywords between tildes (~code~).")
   "Fragment of the system prompt to format the response."
   :type 'string
   :group 'ai)
@@ -3146,13 +3146,15 @@ Analyze the following code and provide suggestions regarding:
     (interactive)
     (let ((gptel-backend (gptel-get-backend "Ollama"))
           (gptel-model local/clojure-review-llm)
-          (system-msg "Ești un expert în testare Clojure.
-Analizează codul sursă și generează un set complet de teste unitare folosind `clojure.test`.
-Reguli:
-1. Include cazuri de succes (happy path) și cazuri de eroare (edge cases).
-2. Dacă funcția este pură, folosește `is (= ...)` intensiv.
-3. Formatează totul în Org-mode cu blocuri #+begin_src clojure.
-4. Explică pe scurt ce testează fiecare caz folosind subtitluri Org-mode (*)."))
+           (system-msg (concat
+                        "Ești un expert în testare Clojure.\n"
+                        "Analizează codul sursă și generează un set complet de teste unitare folosind `clojure.test`.\n"
+                        "Reguli:\n"
+                        "1. Include cazuri de succes (happy path) și cazuri de eroare (edge cases).\n"
+                        "2. Dacă funcția este pură, folosește `is (= ...)` intensiv.\n"
+                        "3. Formatează totul în Org-mode cu blocuri "
+                        (format "#+begin%src clojure." "_") "\n"
+                        "4. Explică pe scurt ce testează fiecare caz folosind subtitluri Org-mode (*).")))
       (gptel-request
           (if (use-region-p)
               (buffer-substring-no-properties (region-beginning) (region-end))

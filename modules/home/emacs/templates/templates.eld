@@ -79,17 +79,17 @@ nix-mode
 org-mode
 
 (center "#+begin_center" n> r> n> "#+end_center")
-(clj "#+begin_src clojure" n> n> "#+end_src" :post (forward-line -1))
+(clj (concat "#+begin" "_src clojure") n> n> (concat "#+end" "_src") :post (forward-line -1))
 (comment "#+begin_comment" n> r> n> "#+end_comment")
-(elisp "#+begin_src emacs-lisp " n> n> "#+end_src" :post (forward-line -1))
+(elisp (concat "#+begin" "_src emacs-lisp ") n> n> (concat "#+end" "_src") :post (forward-line -1))
 (example "#+begin_example" n> r> n> "#+end_example")
 (img "#+ATTR_LaTeX: :width 0.8\textwidth :options keepaspectratio" n> "file:" p)
-(plantuml "  #+begin_src plantuml :results verbatim" n "@startuml" n "@enduml" n> "#+end_src")
+(plantuml (concat "  #+begin" "_src plantuml :results verbatim") n "@startuml" n "@enduml" n> (concat "#+end" "_src"))
 (quote "#+begin_quote" n> r> n> "#+end_quote")
-(src "#+begin_src "
+(src (concat "#+begin" "_src ")
       (p (completing-read "Language: "
                                (mapcar #'symbol-name
                                        (mapcar #'car org-babel-load-languages)) nil nil))
-      n> n> "#+end_src")
+      n> n> (concat "#+end" "_src"))
 (title "#+title: " p n "#+author: " p n "#+language: " p n n)
 (verse "#+begin_verse" n> r> n> "#+end_verse")

@@ -37,7 +37,11 @@ in {
       environmentVariables = lib.mkIf (cfg.acceleration == "rocm") {
         OLLAMA_IGPU_ENABLE = "1";
         # Încarcă doar 40 de straturi pe iGPU, restul pe CPU.
-        OLLAMA_NUM_GPU = "35";
+        # OLLAMA_NUM_GPU = "35";
+        # KV Cache Quantization: Quantizes the context cache to 8-bit, allowing roughly 2x longer context within the same VRAM limit.
+        OLLAMA_KV_CACHE_TYPE = "q8_0";
+        # Flash Attention: Reduces memory overhead for the attention mechanism.
+        OLLAMA_FLASH_ATTENTION = "1";
       };
     };
 

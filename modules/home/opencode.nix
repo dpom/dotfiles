@@ -8,7 +8,6 @@ let
   # 1. Definim șablonul de bază fără modelele hardcodate
   opencodeTemplate = pkgs.writeText "opencode-template.json" ''
     {
-      "model": "ollama/qwen3.6:27b",
       "provider": {
         "ollama": {
           "npm": "@ai-sdk/openai-compatible",

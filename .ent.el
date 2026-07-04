@@ -10,7 +10,6 @@
 (setq ent-project-name "dotfiles")
 (setq ent-clean-regexp ".*~$\\|.*sync-conflict.*$")
 (setq org-files '("Config.txt" "Emacs.txt"))
-
 (ent-load-default-tasks)
 
 ;; Aux functions
