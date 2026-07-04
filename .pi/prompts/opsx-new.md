@@ -5,6 +5,7 @@ description: Start a new change using the experimental artifact workflow (OPSX)
 Start a new change using the experimental artifact-driven approach.
 
 **Input**: The argument after `/opsx-new` is the change name (kebab-case), OR a description of what the user wants to build.
+**Provided arguments**: $@
 
 **Steps**
 
