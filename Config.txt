@@ -318,8 +318,8 @@ networking = {
     "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
     "192.168.0.110" = [ "remarkable"];
   };
-    # Optional: Open the  ollama default port if you want to access it from other devices
-    firewall.allowedTCPPorts = [ 11434 ];
+  # Optional: Open the  ollama default port if you want to access it from other devices
+  firewall.allowedTCPPorts = [ 11434 ];
 };
 
 #+end_src
@@ -496,9 +496,7 @@ hardware.fw-fanctrl = {
 #+begin_src nix :noweb-ref mary-nixos
 dpom-ollama.enable = true;
 dpom-ollama.acceleration = "rocm";
-dpom-ollama.loadModels = [
-  "llama3.1:8b"
-];
+
 #+end_src
 
 **** nix-ld
