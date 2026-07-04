@@ -72,74 +72,60 @@ let
       mainProgram = "pi";
     };
   };
+
+  piConfigTemplate = pkgs.writeText "pi-models-template.json" ''
+    {
+      "providers": {
+        "ollama": {
+          "baseUrl": "http://localhost:11434/v1",
+          "api": "openai-completions",
+          "apiKey": "ollama",
+          "compat": {
+            "supportsDeveloperRole": false,
+            "supportsReasoningEffort": false
+          }
+        }
+      }
+    }
+  '';
+
+  generatePiConfig = pkgs.writeShellApplication {
+    name = "generate-pi-config";
+    runtimeInputs = with pkgs; [ curl jq ];
+    text = ''
+      PI_AGENT_DIR="$HOME/.pi/agent"
+      mkdir -p "$PI_AGENT_DIR"
+
+      echo "Querying Ollama for local models..."
+      if curl -s -f http://localhost:11434/api/tags > /dev/null; then
+        MODELS_JSON=$(curl -s http://localhost:11434/api/tags | jq -c '
+          [.models[] | {
+            id: .name,
+            name: (.name | split(":")[0] | gsub("-"; " ") | split(" ") | map((.[0:1] | ascii_upcase) + .[1:]) | join(" ")) + " (Local)",
+            input: ["text"],
+            contextWindow: 65536,
+            maxTokens: 32768
+          }]
+        ')
+      else
+        echo "Warning: Ollama is not running. Using empty model list."
+        MODELS_JSON="[]"
+      fi
+
+      echo "Generating $$PI_AGENT_DIR/models.json..."
+      jq --argjson models "$MODELS_JSON" '.providers.ollama.models = $models' "${piConfigTemplate}" > "$PI_AGENT_DIR/models.json"
+      echo "Done! Configuration saved to $PI_AGENT_DIR/models.json."
+    '';
+  };
 in
 {
   options = {
     dpom-pi.enable = lib.mkEnableOption "Add pi coding agent";
   };
   config = lib.mkIf config.dpom-pi.enable {
-    home.packages = [ pi-coding-agent pi-acp ];
-    home.file.".pi/agent/models.json" = {
-      text = builtins.toJSON {
-        providers = {
-          ollama = {
-            baseUrl = "http://localhost:11434/v1";
-            api = "openai-completions";
-            apiKey = "ollama";
-            compat = {
-              supportsDeveloperRole = false;
-              supportsReasoningEffort = false;
-            };
-            models = [
-              {
-                id = "gemma4:e4b";
-                name = "Gemma 4 (Local)";
-                reasoning = true;
-                input = [ "text" "image" ];
-                contextWindow = 131072;
-                maxTokens = 8192;
-              }
-              {
-                id = "qwen2.5-coder:7b";
-                name = "Qwen 2.5 Coder 7B (Local)";
-                reasoning = true;
-                input = [ "text" ];
-                contextWindow = 32768;
-                maxTokens = 8192;
-              }
-              {
-                id = "qwen3.5:9b";
-                name = "Qwen 3.5 9B (Local)";
-                reasoning = true;
-                input = [ "text" ];
-                contextWindow = 131072;
-                maxTokens = 8192;
-              }
-              {
-                id = "llama3.1:8b";
-                name = "Llama 3.1 8B (Local)";
-                input = [ "text" ];
-                contextWindow = 128000;
-                maxTokens = 8192;
-              }
-              {
-                id = "llama3.2:3b";
-                name = "Llama 3.2 3B (Local)";
-                input = [ "text" ];
-                contextWindow = 128000;
-                maxTokens = 8192;
-              }
-              {
-                id = "TranslateGemma:4b";
-                name = "Translate Gemma 4B (Local)";
-                input = [ "text" ];
-                contextWindow = 8192;
-                maxTokens = 4096;
-              }
-            ];
-          };
-        };
-      };
-    };
+    home.packages = [ pi-coding-agent pi-acp generatePiConfig ];
+    home.activation.generatePiConfig = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      $DRY_RUN_CMD ${generatePiConfig}/bin/generate-pi-config
+    '';
   };
 }

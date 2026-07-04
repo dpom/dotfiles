@@ -4,24 +4,26 @@ Pi is a coding agent CLI that provides an interactive terminal-based AI coding a
 
 ## What Changes
 
-- Add `pkgs.pi-coding-agent` at v0.80.3 to both `mary` and `bob` via a new Home Manager module
-- Create `modules/home/pi.nix` with `dpom-pi.enable` toggle
+- Add `pi-coding-agent` (v0.80.3) and `pi-acp` (v0.0.31) to both `mary` and `bob` via a new Home Manager module
+- Create `modules/home/pi.nix` with `dpom-pi.enable` toggle, including both `buildNpmPackage` derivations and a `models.json` config for Ollama provider presets
 - Register the module in `modules/home/default.nix` imports
 - Enable `dpom-pi` in `hosts/mary/home.nix` and `hosts/bob/home.nix`
-- Build the package at the desired version using `pkgs.buildNpmPackage` since nixpkgs only has v0.75.4
+- Build both packages from source using `pkgs.buildNpmPackage` since nixpkgs has outdated versions
 
 ## Capabilities
 
 ### New Capabilities
 - `pi-coding-agent`: Install and configure the pi coding agent CLI on both hosts
+- `pi-acp`: Install the ACP adapter companion for agent-shell integration
+- `.pi/agent/models.json`: Pre-configure Ollama provider with local model presets (gemma4, qwen2.5-coder, qwen3.5, llama3.1, llama3.2, TranslateGemma)
 
 ### Modified Capabilities
 
 
 ## Impact
 
-- `modules/home/pi.nix` — new Home Manager module
+- `modules/home/pi.nix` — new Home Manager module with inline derivations for both packages and models.json
 - `modules/home/default.nix` — add import
 - `hosts/mary/home.nix` — enable `dpom-pi`
 - `hosts/bob/home.nix` — enable `dpom-pi`
-- The pi package will need to be built from source (npm build) at the pinned version
+- Both packages will be built from source (npm build) at pinned versions
