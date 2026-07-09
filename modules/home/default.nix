@@ -11,6 +11,9 @@
   programs.home-manager.enable = true;
   fonts.fontconfig.enable = true;
 
+  # Silence hyprland configType warning (pulled in by stylix)
+  wayland.windowManager.hyprland.configType = "hyprlang";
+
   # Declaring Specific Secrets
   sops.secrets = {
     "github_personal_token" = {};

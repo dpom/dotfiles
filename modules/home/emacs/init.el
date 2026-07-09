@@ -2081,6 +2081,7 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
   (require 'subr-x)
   (setq gptel-playback t
         gptel-default-mode 'org-mode
+        gptel-default-model 'gemma4:e4b
         gptel-cache '(message system tool)
         gptel-track-media t
         gptel-ollama-backend (gptel-make-ollama "Ollama"
@@ -2091,7 +2092,8 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
     :stream t
     :key #'local/get-gemini-key
     :models '(gemini-2.5-flash
-            gemini-2.5-pro)))
+            gemini-2.5-pro))
+  (setq gptel-backend gptel-ollama-backend))
 
   (with-eval-after-load 'gptel
       (global-set-key (kbd "<f5>") 'gptel-send)
