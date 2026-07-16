@@ -1212,6 +1212,8 @@ in {
         OLLAMA_KV_CACHE_TYPE = "q8_0";
         # Flash Attention: Reduces memory overhead for the attention mechanism.
         OLLAMA_FLASH_ATTENTION = "1";
+        # Context
+        OLLAMA_CONTEXT_LENGTH = "64000";
       };
     };
 
@@ -1948,14 +1950,14 @@ xdg = {
   mimeApps = {
     enable = true;
     defaultApplications = {
-      "text/html" = "google-chrome.desktop";
-      "x-scheme-handler/http" = "google-chrome.desktop";
-      "x-scheme-handler/https" = "google-chrome.desktop";
-      "x-scheme-handler/about" = "google-chrome.desktop";
-      "x-scheme-handler/unknown" = "google-chrome.desktop";
+      "text/html" = "brave-browser.desktop";
+      "x-scheme-handler/http" = "brave-browser.desktop";
+      "x-scheme-handler/https" = "brave-browser.desktop";
+      "x-scheme-handler/about" = "brave-browser.desktop";
+      "x-scheme-handler/unknown" = "brave-browser.desktop";
     };
     associations.added = {
-      "image/svg+xml" = "google-chrome.desktop";
+      "image/svg+xml" = "brave-browser.desktop";
     };
   };
 };

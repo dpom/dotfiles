@@ -1293,7 +1293,7 @@ provide language-specific keyword completion."
   :custom
   (org-roam-directory local/notes-dir)
   (org-roam-db-location (expand-file-name "org-roam.db" emacs-cache-dir))
-  (org-roam-graph-viewer "/usr/bin/google-chrome-stable")
+  (org-roam-graph-viewer "brave")
   (org-roam-completion-everywhere nil)
   (org-roam-node-display-template   (concat "${title:*} "
                                             (propertize "${tags:20}" 'face 'org-tag)))
