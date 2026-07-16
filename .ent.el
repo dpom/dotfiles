@@ -89,6 +89,9 @@ Returns nil if the file does not exist or is not readable."
       :doc "Garbage collect in the nix repository"
       :action "df -h / && echo ' ' && nix-collect-garbage && echo ' ' && df -h /")
 
+(task "edit-secrets"
+      :doc "Edit secrets file"
+      :action "EDITOR=emacsclient sops secrets/secrets.yaml")
 
 (provide '.ent)
 ;;; .ent.el ends here
