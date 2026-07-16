@@ -54,7 +54,10 @@ emacs-lisp-mode
 (provide "(provide '" (file-name-base (or (buffer-file-name) (buffer-name))) ")" n  ";;; " (file-name-nondirectory (or (buffer-file-name) (buffer-name))) " ends here" n)
 (pt "(point)")
 (rec "(letrec (" p ")" n> r> ")")
-(task "(task :" (p "task:") " '() \"\" \"\")" n)
+(task "(task \"" p "\"" n>
+      ":doc \"\"" n>
+      ":deps \"\"" n>
+      ":action \"\")")
 (var "(defvar " p "\n  \"" p "\")")
 (whenlet "(when-let* (" p ")" n> r> ")")
 (whilelet "(while-let (" p ")" n> r> ")")
@@ -81,9 +84,17 @@ org-mode
 (center "#+begin_center" n> r> n> "#+end_center")
 (clj (concat "#+begin" "_src clojure") n> n> (concat "#+end" "_src") :post (forward-line -1))
 (comment "#+begin_comment" n> r> n> "#+end_comment")
+(dot "#+begin_src dot :file " p " :cmdline -Kdot -Tpng" n>
+     "digraph G {" n>
+     "}" n>
+     "#+end_src")
 (elisp (concat "#+begin" "_src emacs-lisp ") n> n> (concat "#+end" "_src") :post (forward-line -1))
 (example "#+begin_example" n> r> n> "#+end_example")
 (img "#+ATTR_LaTeX: :width 0.8\textwidth :options keepaspectratio" n> "file:" p)
+(orghdr "#+TITLE: " (file-name-base (or (buffer-file-name) (buffer-name))) n
+        "#+AUTHOR: " (user-full-name) n
+        "#+DATE: " (format-time-string "%Y-%m-%d") n
+        "#+STARTUP: overview indent align inlineimages" n n)
 (plantuml (concat "  #+begin" "_src plantuml :results verbatim") n "@startuml" n "@enduml" n> (concat "#+end" "_src"))
 (quote "#+begin_quote" n> r> n> "#+end_quote")
 (src (concat "#+begin" "_src ")
@@ -93,3 +104,25 @@ org-mode
       n> n> (concat "#+end" "_src"))
 (title "#+title: " p n "#+author: " p n "#+language: " p n n)
 (verse "#+begin_verse" n> r> n> "#+end_verse")
+
+
+plantuml-mode
+
+(theme "!theme sunlust" n
+       "skinparam defaultTextAlignment center" n
+       "skinparam NoteAlignment center" n)
+
+clojure-mode
+
+(ns "(ns " (p (let* ((file-path (or (buffer-file-name) ""))
+              (rel-path (if (fboundp 'project-root)
+                            (file-relative-name file-path (project-root (project-current t)))
+                          (file-name-nondirectory file-path)))
+              (clean-path (file-name-sans-extension
+                           (replace-regexp-in-string "^\\(src/main/clojure/\\|src/test/clojure/\\|src/\\|test/\\)" "" rel-path))))
+         (replace-regexp-in-string "_" "-"
+                                   (replace-regexp-in-string "/" "." clean-path))))
+
+    n
+")"
+    n)
