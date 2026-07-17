@@ -26,6 +26,7 @@
     inputs.stylix.homeModules.stylix
     inputs.sops-nix.homeManagerModules.sops
     ./stylix.nix
+    ./ai.nix
     ./bash.nix
     ./direnv.nix
     ./dunst.nix

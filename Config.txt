@@ -548,19 +548,19 @@ virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la 
     ../../modules/home
   ];
 
+  dpom-ai.enable = true;
   dpom-bash.enable = true;
   dpom-direnv.enable = true;
   dpom-hunspell.enable = true;
   dpom-kanshi.enable = true;
-  dpom-rofi.enable = true;
   dpom-kitty.enable = true;
   dpom-office.enable = true;
-  dpom-sway.enable = true;
-  dpom-waybar.enable = true;
-  dpom-swaync.enable = true;
   dpom-opencode.enable = true;
-  dpom-gemini.enable =true;
   dpom-pi.enable = true;
+  dpom-rofi.enable = true;
+  dpom-sway.enable = true;
+  dpom-swaync.enable = true;
+  dpom-waybar.enable = true;
 
   systemd.user.targets.tray = {
     Unit = {
@@ -1674,6 +1674,9 @@ Login screen
 {
   # Enable home-manager
   programs.home-manager.enable = true;
+  # Autmaticaly expire old home-manager generations (default monthly and 30 days older)
+  services.home-manager.autoExpire.enable = true;
+  services.home-manager.autoUpgrade.useFlake = true;
   fonts.fontconfig.enable = true;
 
   # Silence hyprland configType warning (pulled in by stylix)
@@ -1703,6 +1706,7 @@ imports = [
   inputs.stylix.homeModules.stylix
   inputs.sops-nix.homeManagerModules.sops
   ./stylix.nix
+  ./ai.nix
   ./bash.nix
   ./direnv.nix
   ./dunst.nix
@@ -1992,6 +1996,31 @@ programs.browserpass = {
     "brave"
   ];
 };
+#+end_src
+** AI
+
+#+begin_src nix :tangle modules/home/ai.nix
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
+{
+  options = {
+    dpom-ai.enable = lib.mkEnableOption "Add common AI settings";
+  };
+
+  config = lib.mkIf config.dpom-ai.enable {
+    home.packages = (
+      with pkgs;
+      [
+        lmstudio
+        skills
+      ]
+    );
+  };
+}
 #+end_src
 
 ** Bash
@@ -2539,7 +2568,7 @@ nix module for office:
   };
 }
 #+end_src
-** Pi Coding Agent
+** Pi Agent
 
 #+begin_src nix :tangle modules/home/pi.nix
 { config, pkgs, lib, ... }:
@@ -2764,7 +2793,6 @@ in
   };
 }
 #+end_src
-
 
 ** Waybar
 
@@ -3386,6 +3414,7 @@ in
       shotman
       slurp
       swayr
+      swayimg
       # swaynotificationcenter
       wdisplays
       wf-recorder
@@ -3629,7 +3658,7 @@ programs.swayr = {
     pandoc
     plantuml
     poppler
-    ripgrep
+    ripgrep-all
     sops
     source-code-pro
     sqls

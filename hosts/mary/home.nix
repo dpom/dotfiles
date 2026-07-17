@@ -4,19 +4,19 @@
     ../../modules/home
   ];
 
+  dpom-ai.enable = true;
   dpom-bash.enable = true;
   dpom-direnv.enable = true;
   dpom-hunspell.enable = true;
   dpom-kanshi.enable = true;
-  dpom-rofi.enable = true;
   dpom-kitty.enable = true;
   dpom-office.enable = true;
-  dpom-sway.enable = true;
-  dpom-waybar.enable = true;
-  dpom-swaync.enable = true;
   dpom-opencode.enable = true;
-  dpom-gemini.enable =true;
   dpom-pi.enable = true;
+  dpom-rofi.enable = true;
+  dpom-sway.enable = true;
+  dpom-swaync.enable = true;
+  dpom-waybar.enable = true;
 
   systemd.user.targets.tray = {
     Unit = {
