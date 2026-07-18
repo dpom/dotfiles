@@ -3405,6 +3405,61 @@ codebase before making changes."
     :include-tool-results 't)
   )
   #+end_src
+- commit message:
+  #+begin_src emacs-lisp
+(with-eval-after-load 'gptel
+  (defcustom local/commit-msg-system
+    "You generate Git commit messages from diffs. Analyze the diff carefully and describe what changed and why.
+
+Format: conventional commits: type(scope): subject
+
+<body>
+
+Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
+
+Rules:
+- Subject: max 50 chars, imperative mood, no period
+- Body: wrap at 72 chars, explain motivation
+- Output ONLY the commit message, nothing else"
+    "System prompt for git commit message generation."
+    :type 'string
+    :group 'ai)
+
+  (gptel-make-preset 'commit-message
+    :description "preset for commit messages"
+    :backend "Ollama"
+    :model 'qwen2.5-coder:7b
+    :system local/commit-msg-system
+    :stream 't
+    :temperature 0.7)
+
+(defun local/generate-commit-message ()
+  "Generate a git commit message from staged changes via gptel/Ollama.
+Inserts the generated message at point."
+  (interactive)
+  (let* ((git-root-dir (locate-dominating-file default-directory ".git"))
+         (diff (when git-root-dir
+                 (shell-command-to-string "git diff --cached"))))
+    (unless git-root-dir
+      (user-error "Not inside a Git repository"))
+    (when (string-empty-p diff)
+      (user-error "No staged changes to commit"))
+    (let* ((gptel-buf (get-buffer-create "*gptel-commit-msg*")))
+      (with-current-buffer gptel-buf
+        (setq-local gptel-backend (gptel-get-backend "Ollama"))
+        (setq-local gptel-model 'qwen2.5-coder:7b))
+      (gptel-request
+          (format "Generate a commit message for this diff:\n\n%s" diff)
+        :buffer gptel-buf
+        :system local/commit-msg-system
+        :context (current-buffer)
+        :callback (lambda (response info)
+                    (if (stringp response)
+                        (with-current-buffer (plist-get info :context)
+                          (insert response))
+                      (message "gptel error: %s"
+                               (plist-get info :status)))))))))
+  #+end_src
 
 **** gptel-quick
 
@@ -5390,6 +5445,7 @@ Keybindings occupy a central place in emacs optimization. I'd like a coherent, e
      ("i" "init" magit-init )
      ("l" "log (current file)" magit-log-buffer-file)
      ("L" "log (project)" magit-log-current)
+     ("m" "generate message" local/generate-commit-message)
      ("t" "timemachine" git-timemachine)]))
 #+end_src
 

@@ -9,6 +9,9 @@
 {
   # Enable home-manager
   programs.home-manager.enable = true;
+  # Autmaticaly expire old home-manager generations (default monthly and 30 days older)
+  services.home-manager.autoExpire.enable = true;
+  services.home-manager.autoUpgrade.useFlake = true;
   fonts.fontconfig.enable = true;
 
   # Silence hyprland configType warning (pulled in by stylix)

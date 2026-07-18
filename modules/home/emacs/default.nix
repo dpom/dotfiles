@@ -37,7 +37,7 @@
     pandoc
     plantuml
     poppler
-    ripgrep
+    ripgrep-all
     sops
     source-code-pro
     sqls

@@ -37,6 +37,7 @@ in
       shotman
       slurp
       swayr
+      swayimg
       # swaynotificationcenter
       wdisplays
       wf-recorder
