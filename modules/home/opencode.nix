@@ -16,6 +16,14 @@ let
             "baseURL": "http://localhost:11434/v1"
           },
           "models": {}
+        },
+        "lmstudio": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "LM Studio (local)",
+          "options": {
+            "baseURL": "http://localhost:1234/v1"
+          },
+          "models": {}
         }
       }
     }
@@ -33,20 +41,28 @@ let
 
       echo "Querying Ollama for local models..."
       if curl -s -f http://localhost:11434/api/tags > /dev/null; then
-          # Transformă array-ul de modele de la Ollama în obiectul așteptat de opencode
-          # Alocă automat o limită implicită de context pentru fiecare model găsit
-          MODELS_JSON=$(curl -s http://localhost:11434/api/tags | jq -c '
+          OLLAMA_MODELS=$(curl -s http://localhost:11434/api/tags | jq -c '
             reduce .models[] as $m ( {}; .[$m.name] = { "name": $m.name, "limit": { "context": 65536, "output": 32768 } } )
           ')
-          echo "Found models, updating config."
+          echo "Found Ollama models."
       else
           echo "Warning: Ollama is not running or unreachable. Using empty model list."
-          MODELS_JSON="{}"
+          OLLAMA_MODELS="{}"
+      fi
+
+      echo "Querying LM Studio for local models..."
+      if curl -s -f http://localhost:1234/v1/models > /dev/null; then
+          LMSTUDIO_MODELS=$(curl -s http://localhost:1234/v1/models | jq -c '
+            reduce .data[] as $m ( {}; .[$m.id] = { "name": $m.id, "limit": { "context": 65536, "output": 32768 } } )
+          ')
+          echo "Found LM Studio models."
+      else
+          echo "Warning: LM Studio is not running or unreachable. Using empty model list."
+          LMSTUDIO_MODELS="{}"
       fi
 
       echo "Generating $CONFIG_FILE..."
-      # Injectează obiectul generat în șablonul de bază
-      jq --argjson models "$MODELS_JSON" '.provider.ollama.models = $models' "${opencodeTemplate}" > "$CONFIG_FILE"
+      jq --argjson ollama "$OLLAMA_MODELS" --argjson lmstudio "$LMSTUDIO_MODELS" '.provider.ollama.models = $ollama | .provider.lmstudio.models = $lmstudio' "${opencodeTemplate}" > "$CONFIG_FILE"
 
       echo "Done! Configuration saved to $CONFIG_FILE."
     '';

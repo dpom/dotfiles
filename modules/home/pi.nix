@@ -84,6 +84,15 @@ let
             "supportsDeveloperRole": false,
             "supportsReasoningEffort": false
           }
+        },
+        "lmstudio": {
+          "baseUrl": "http://localhost:1234/v1",
+          "api": "openai-completions",
+          "apiKey": "lm-studio",
+          "compat": {
+            "supportsDeveloperRole": true,
+            "supportsReasoningEffort": false
+          }
         }
       }
     }
@@ -98,7 +107,7 @@ let
 
       echo "Querying Ollama for local models..."
       if curl -s -f http://localhost:11434/api/tags > /dev/null; then
-        MODELS_JSON=$(curl -s http://localhost:11434/api/tags | jq -c '
+        OLLAMA_MODELS=$(curl -s http://localhost:11434/api/tags | jq -c '
           [.models[] | {
             id: .name,
             name: (.name | split(":")[0] | gsub("-"; " ") | split(" ") | map((.[0:1] | ascii_upcase) + .[1:]) | join(" ")) + " (Local)",
@@ -109,11 +118,27 @@ let
         ')
       else
         echo "Warning: Ollama is not running. Using empty model list."
-        MODELS_JSON="[]"
+        OLLAMA_MODELS="[]"
+      fi
+
+      echo "Querying LM Studio for local models..."
+      if curl -s -f http://localhost:1234/v1/models > /dev/null; then
+        LMSTUDIO_MODELS=$(curl -s http://localhost:1234/v1/models | jq -c '
+          [.data[] | {
+            id: .id,
+            name: (.id | split(":")[0] | gsub("-"; " ") | split(" ") | map((.[0:1] | ascii_upcase) + .[1:]) | join(" ")) + " (Local)",
+            input: ["text"],
+            contextWindow: 65536,
+            maxTokens: 32768
+          }]
+        ')
+      else
+        echo "Warning: LM Studio is not running. Using empty model list."
+        LMSTUDIO_MODELS="[]"
       fi
 
       echo "Generating $$PI_AGENT_DIR/models.json..."
-      jq --argjson models "$MODELS_JSON" '.providers.ollama.models = $models' "${piConfigTemplate}" > "$PI_AGENT_DIR/models.json"
+      jq --argjson ollama "$OLLAMA_MODELS" --argjson lmstudio "$LMSTUDIO_MODELS" '.providers.ollama.models = $ollama | .providers.lmstudio.models = $lmstudio' "${piConfigTemplate}" > "$PI_AGENT_DIR/models.json"
       echo "Done! Configuration saved to $PI_AGENT_DIR/models.json."
     '';
   };
