@@ -13,17 +13,23 @@
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
     # boot.loader.limine.maxGenerations = 10;
-    networking = {
-      hostName = "bob"; # Define your hostname.
+  networking = {
+    hostName = "bob"; # Define your hostname.
   
-      # Enable networking
-      networkmanager.enable = true;
-      hosts = {
-        "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
-        "192.168.i0.110" = [ "remarkable"];
-      };
-      # allow org-roam web ui
-      firewall.allowedTCPPorts = [ 35901 ];
+    # Enable networking
+    networkmanager.enable = true;
+  
+    # Forțează servere DNS statice de încredere
+    nameservers = [ "1.1.1.1" "8.8.8.8" ];
+    # Împiedică DHCP-ul wireless să suprascrie DNS-ul local
+    networkmanager.dns = "none";
+  
+    hosts = {
+      "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+      "192.168.0.110" = [ "remarkable"];
+    };
+    # allow org-roam web ui
+    firewall.allowedTCPPorts = [ 35901 ];
   
     };
   

@@ -620,9 +620,9 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   :config
   (defun init-cape-comint-capf ()
     (setq-local completion-at-point-functions
-                (list (apply #'cape-capf-super
-                             #'cape-history
-                             (cl-remove-if-not #'functionp completion-at-point-functions)))))
+                (list (cape-capf-super
+                       #'cape-history
+                       #'cape-dabbrev))))
 
   (defun init-cape-prog-capf ()
     "Configurează capf-urile pentru prog-mode folosind cape."
@@ -1447,7 +1447,7 @@ If you omit CLOSE, it will reuse OPEN."
 
 (with-eval-after-load 'org
   (require 'org-capture)
-  (defalias #'cape-super-capf #'cape-capf-super)
+  (defalias 'cape-super-capf 'cape-capf-super)
   (defvar local/org-task-template
     "* TODO %?\n%a\n"
     "Template for task.")

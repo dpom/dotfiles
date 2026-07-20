@@ -314,6 +314,11 @@ networking = {
   hostName = "mary";
   # Enable networking
   networkmanager.enable = true;
+  # Forțează servere DNS statice de încredere
+  nameservers = [ "1.1.1.1" "8.8.8.8" ];
+
+  # Împiedică DHCP-ul wireless să suprascrie DNS-ul local
+  networkmanager.dns = "none";
   hosts = {
     "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
     "192.168.0.110" = [ "remarkable"];
@@ -632,17 +637,23 @@ dpom-proton.enable = true;
 **** networking
 
 #+begin_src nix :noweb-ref bob-nixos
-  networking = {
-    hostName = "bob"; # Define your hostname.
+networking = {
+  hostName = "bob"; # Define your hostname.
 
-    # Enable networking
-    networkmanager.enable = true;
-    hosts = {
-      "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
-      "192.168.i0.110" = [ "remarkable"];
-    };
-    # allow org-roam web ui
-    firewall.allowedTCPPorts = [ 35901 ];
+  # Enable networking
+  networkmanager.enable = true;
+
+  # Forțează servere DNS statice de încredere
+  nameservers = [ "1.1.1.1" "8.8.8.8" ];
+  # Împiedică DHCP-ul wireless să suprascrie DNS-ul local
+  networkmanager.dns = "none";
+
+  hosts = {
+    "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
+    "192.168.0.110" = [ "remarkable"];
+  };
+  # allow org-roam web ui
+  firewall.allowedTCPPorts = [ 35901 ];
 
   };
 
@@ -1756,15 +1767,9 @@ home = rec {
   sessionPath = [
     "$HOME/.local/bin"
   ];
-  # sessionVariables = {
-  #   EDITOR = "emacsclient";
-  #   GTAGSLABEL = "pygments";
-  #   LOCALE_ARCHIVE = "/usr/lib/locale/locale-archive";
-  #   TERMINAL = "kitty";
-  # };
 };
 systemd.user.sessionVariables = {
-  SSH_AUTH_SOCK = "/run/user/1000/keyring/ssh";
+  SSH_AUTH_SOCK = "/run/user/1000/gnupg/S.gpg-agent.ssh";
 };
 
 
@@ -2058,14 +2063,7 @@ programs.browserpass = {
         export TERMINAL=kitty
         export GPG_TTY=$(tty)
 
-        export SSH_AUTH_SOCK=$(gpgconf --list-dirs agent-ssh-socket)
-        # export SSH_AUTH_SOCK="/run/user/1000/ssh-agent";
         export ALTERNATE_EDITOR=""
-
-        if [ -z "$SSH_TTY" ] && [ -S "$SSH_AUTH_SOCK" ]; then
-            # Încarcă cheia silențios doar dacă socket-ul este valid și disponibil
-            ssh-add ~/.ssh/id_ed25519 2>/dev/null
-        fi
       '';
     };
     home.file.".local/bin/caps2esc" = {
