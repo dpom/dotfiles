@@ -69,15 +69,9 @@
     sessionPath = [
       "$HOME/.local/bin"
     ];
-    # sessionVariables = {
-    #   EDITOR = "emacsclient";
-    #   GTAGSLABEL = "pygments";
-    #   LOCALE_ARCHIVE = "/usr/lib/locale/locale-archive";
-    #   TERMINAL = "kitty";
-    # };
   };
   systemd.user.sessionVariables = {
-    SSH_AUTH_SOCK = "/run/user/1000/keyring/ssh";
+    SSH_AUTH_SOCK = "/run/user/1000/gnupg/S.gpg-agent.ssh";
   };
   
   

@@ -21,6 +21,11 @@
     hostName = "mary";
     # Enable networking
     networkmanager.enable = true;
+    # Forțează servere DNS statice de încredere
+    nameservers = [ "1.1.1.1" "8.8.8.8" ];
+  
+    # Împiedică DHCP-ul wireless să suprascrie DNS-ul local
+    networkmanager.dns = "none";
     hosts = {
       "192.168.0.100" = [ "bob" "bob.dpom.net" "archie" "archie.dpom.net"];
       "192.168.0.110" = [ "remarkable"];
