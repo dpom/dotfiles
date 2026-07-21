@@ -902,6 +902,26 @@ provide language-specific keyword completion."
   :init
   (setq auto-revert-verbose nil))
 
+(defun local/scratch-buffer ()
+  "Open a new scratch buffer."
+  (interactive)
+  (switch-to-buffer "*scratch*"))
+
+(with-eval-after-load 'transient
+  (transient-define-prefix local/buffer-menu ()
+    "buffer menu"
+    [("b" "switch buffer" consult-buffer)
+     ("B" "ibuffer" ibuffer)
+     ("d" "kill current buffer" kill-this-buffer)
+     ("f" "display popper" popper-toggle)
+     ("j" "cycle popper" popper-cycle)
+     ("k" "pick & kill" kill-buffer)
+     ("K" "kill regexp buffers" kill-matching-buffers-no-ask)
+     ("l" "list buffers" list-buffers)
+     ("r" "rename buffer" rename-buffer)
+     ("s" "open scratch" local/scratch-buffer)
+     ("t" "toggle popper" popper-toggle-type)]))
+
 (defmacro make-find (functionname filename)
   (let ((funsymbol (intern (concat "find-" functionname))))
     `(defun ,funsymbol () (interactive) (find-file  ,filename))))
@@ -909,6 +929,7 @@ provide language-specific keyword completion."
 (make-find "config" local/config-file)
 (make-find "accounts" local/accounts-file)
 (make-find "contacts" local/contacts-file)
+(make-find "bibtex" local/bibliography-file)
 
 (defun find-notebook ()
   (interactive)
@@ -1005,6 +1026,25 @@ provide language-specific keyword completion."
   (setq trashed-use-header-line t)
   (setq trashed-sort-key '("Date deleted" . t))
   (setq trashed-date-format "%Y-%m-%d %H:%M:%S"))
+
+(with-eval-after-load 'transient
+  (transient-define-prefix local/file-menu ()
+    "file menu"
+    [[("SPC" "locate" consult-locate)
+      ("." "dir other window" dired-jump-other-window)
+      ("/" "grep" local/search-in-files)
+      ("a" "accounts" find-accounts)
+      ("b" "bibtex" find-bibtex)]
+     [("c" "contacts" find-contacts)
+      ("d" "dired" consult-dir)
+      ("e" "emacs config" find-config)
+      ("f" "find file" find-file)
+      ("l" "find library" find-library)]
+     [("n" "notebook" find-notebook)
+      ("p" "at point" find-file-at-point)
+      ("r" "recently opened files" consult-recent-file)
+      ("s" "save file" save-buffer)
+      ("w" "save as" write-file)]]))
 
 (require 'windmove)
 
@@ -1331,35 +1371,121 @@ provide language-specific keyword completion."
   :ensure t
   :custom (org-transclusion-include-first-section t))
 
-(with-eval-after-load 'transient
-  (transient-define-prefix local/notes-menu ()
-    "notes menu"
-    [["Commands"
-      ("/" "search" local/org-roam-rg-search)
-      ("a" "add alias" org-roam-alias-add)
-      ("b" "switch-to-buffer" org-roam-buffer-toggle)
-      ("c" "capture" org-roam-capture)
-      ("f" "find" org-roam-node-find)
-      ("i" "create id" org-id-get-create)
-      ("n" "insert node" org-roam-node-insert)
-      ;; ("q" "ql search" org-ql-search)
-      ]
-     ["References"
-      ("ra" "add ref" org-roam-ref-add)
-      ("rb" "add bib ref" citar-org-roam-ref-add)]
-     ["Transclude"
-      ("ta" "add" org-transclusion-add)
-      ("tA" "add all" org-transclusion-add-all)
-      ("tl" "link" org-transclusion-make-from-link)
-      ("tm" "mode" org-transclusion-mode)]
-     ;; ["Journal"
-     ;;  ("jd" "date" org-roam-dailies-goto-date)
-     ;;  ("jj" "journal" org-roam-dailies-capture-today)]
-     ["Server"
-      ("sd" "sync db" org-roam-db-sync)
-      ("si" "sync id" org-roam-update-org-id-locations)
-      ;; ("sg" "graph" org-roam-graph)
-      ("ss" "start" org-roam-ui-mode)]]))
+(require 'url)
+(require 'json)
+
+(defun local/insert-bibtex-from-isbn (isbn)
+  "Interoghează Open Library și inserează o intrare BibTeX pentru ISBN-ul dat.
+Cheia BibTeX generată va avea formatul autorAnCuvantTitlu (ex: knuth1997Art)."
+  (interactive "sIntroduceți codul ISBN: ")
+  (let* ((clean-isbn (replace-regexp-in-string "[^0-9Xx]" "" isbn))
+         (url-request-extra-headers '(("User-Agent" . "Emacs-BibTeX-Generator/1.0")))
+         (url (format "https://openlibrary.org/api/books?bibkeys=ISBN:%s&format=json&jscmd=data" clean-isbn))
+         (response-buffer (url-retrieve-synchronously url t t))
+         json-data book-data)
+
+    (unless response-buffer
+      (error "Eroare la conectarea la Open Library"))
+
+    ;; Extragem payload-ul JSON sărind peste headerele HTTP
+    (with-current-buffer response-buffer
+      (goto-char (point-min))
+      (re-search-forward "^$" nil 'move)
+      (let ((json-object-type 'alist)
+            (json-array-type 'list)
+            (json-key-type 'string))
+        (setq json-data (json-read)))
+      (kill-buffer response-buffer))
+
+    ;; Open Library returnează datele indexate sub cheia "ISBN:<cod>"
+    (setq book-data (cdr (assoc (concat "ISBN:" clean-isbn) json-data)))
+
+    (if (not book-data)
+        (message "Nu am găsit metadate pentru ISBN: %s" clean-isbn)
+      (let* ((title (cdr (assoc "title" book-data)))
+             (publishers (cdr (assoc "publishers" book-data)))
+             (publisher (if publishers (cdr (assoc "name" (car publishers))) ""))
+             (publish-date (cdr (assoc "publish_date" book-data)))
+             ;; Căutăm exact anul
+             (year (if (and publish-date (string-match "\\([0-9]\\{4\\}\\)" publish-date))
+                       (match-string 1 publish-date)
+                     ""))
+             (authors-list (cdr (assoc "authors" book-data)))
+             (authors (mapconcat (lambda (a) (cdr (assoc "name" a))) authors-list " and "))
+             (first-author (if authors-list (cdr (assoc "name" (car authors-list))) ""))
+             ;; Numele autorului
+             (author-last-name (if (not (string= first-author ""))
+                                   (downcase (car (last (split-string first-author " "))))
+                                 ""))
+
+             ;; EXTRAGERE TITLU: Curățăm titlul și luăm primul cuvânt care nu e stop-word
+             (title-word (if title
+                             (let* ((clean-title (replace-regexp-in-string "[^a-zA-Z0-9 \t]" "" (downcase title)))
+                                    (words (split-string clean-title "[ \t]+" t))
+                                    (stop-words '("the" "a" "an" "of" "and" "in" "on" "to" "for" "with")))
+                               (catch 'found
+                                 (dolist (w words)
+                                   (unless (member w stop-words)
+                                     ;; Returnăm primul cuvânt valid, capitalizat
+                                     (throw 'found (capitalize w))))
+                                 ;; Fallback: dacă toate sunt stop-words, îl luăm pe primul
+                                 (capitalize (or (car words) ""))))
+                           ""))
+
+             ;; Compunem cheia BibTeX: nume autor + an + CuvantTitlu
+             (bib-key (if (and (not (string= author-last-name "")) (not (string= year "")))
+                          (concat author-last-name year title-word)
+                        (concat "isbn_" clean-isbn)))
+
+             ;; Formatăm șablonul final
+             (bibtex-entry (format "@book{%s,\n  title     = {%s},\n  author    = {%s},\n  publisher = {%s},\n  year      = {%s},\n  isbn      = {%s}\n}\n"
+                                   bib-key
+                                   (or title "")
+                                   (or authors "")
+                                   (or publisher "")
+                                   (or year "")
+                                   clean-isbn)))
+        ;; Inserăm rezultatul
+        (insert bibtex-entry)))))
+
+(defun local/insert-bibtex-from-doi (doi)
+  "Get a BibTeX entry from the DOI"
+  (interactive "MDOI: ")
+  (let ((url-mime-accept-string "text/bibliography;style=bibtex"))
+    (with-current-buffer
+        (url-retrieve-synchronously
+         (format "http://dx.doi.org/%s"
+                 (replace-regexp-in-string "http://dx.doi.org/" "" doi)))
+      (switch-to-buffer (current-buffer))
+      (goto-char (point-max))
+      (setq bibtex-entry
+            (buffer-substring
+             (string-match "@" (buffer-string))
+             (point)))
+      (kill-buffer (current-buffer))))
+  (insert (decode-coding-string bibtex-entry 'utf-8))
+  (bibtex-fill-entry))
+
+(use-package citar
+  :ensure t
+  :demand t
+  :custom
+  ;; Calea către fișierul(ele) tău(tale) .bib. Trebuie să fie o listă.
+  (citar-bibliography (list local/bibliography-file))
+  ;; Spune-i pachetului citar unde să caute notițe
+  (citar-notes-paths (list local/notes-dir))
+  :hook
+  ;; Activează completarea la cursor în fișierele relevante
+  (org-mode . citar-capf-setup))
+
+;; Puntea de legătură între citar și org-roam
+(use-package citar-org-roam
+  :ensure t
+  :demand t
+  :after (citar org-roam)
+  :config
+  ;; Activează modul global care sincronizează referințele
+  (citar-org-roam-mode 1))
 
 (use-package ispell
   :ensure nil
@@ -1410,35 +1536,6 @@ If you omit CLOSE, it will reuse OPEN."
 (global-set-key (kbd "M-~") 'insert-pair)
 (global-set-key (kbd "M-[") 'insert-pair)
 (global-set-key (kbd "M-{") 'insert-pair)
-
-(use-package citar
-  :ensure t
-  :demand t
-  :custom
-  (citar-bibliography (list local/bibliography-file))
-  (citar-library-paths (list local/resources-dir))
-  (citar-notes-paths (list local/notes-dir)) ;; Unde stau notițele
-  :config
-  ;; Această linie leagă Citar de Org-Roam pentru comanda "Open Notes"
-  (setq citar-notes-source 'citar-org-roam))
-
-(use-package citar-org-roam
-  :ensure t
-  :after (citar org-roam)
-  :config
-  (citar-org-roam-mode)
-
-  ;; Setează formatul titlului pentru notițele de lectură
-  (setq citar-org-roam-note-title-template "${author} - ${title}")
-
-  ;; Configurare template pentru notița nouă
-  (setq org-roam-capture-templates
-        (append org-roam-capture-templates
-                '(("b" "bibliografie" plain
-                   "%?"
-                   :target (file+head "referinte/${citekey}.org"
-                                      "#+title: ${title}\n#+roam_key:\n")
-                   :unnarrowed t)))))
 
 (setq view-read-only t)
 
@@ -1620,6 +1717,46 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
   :ensure t
   :custom
   (org-make-toc-insert-custom-ids t))
+
+(with-eval-after-load 'transient
+  (transient-define-prefix local/notes-menu ()
+    "notes menu"
+    [["Commands"
+      ("/" "search" local/org-roam-rg-search)
+      ("a" "add alias" org-roam-alias-add)
+      ("b" "switch-to-buffer" org-roam-buffer-toggle)
+      ("c" "capture" org-roam-capture)
+      ("f" "find" org-roam-node-find)
+      ("i" "create id" org-id-get-create)
+      ("n" "insert node" org-roam-node-insert)
+      ;; ("q" "ql search" org-ql-search)
+      ]
+     ["References"
+      ("ra" "add ref" org-roam-ref-add)
+      ("rb" "add bib ref" citar-org-roam-ref-add)
+      ("ri" "insert citation" citar-insert-citation)
+      ("ro" "open citar" citar-open)
+      ("rr" "insert reference" citar-insert-reference)
+      ]
+     ["Transclude"
+      ("ta" "add" org-transclusion-add)
+      ("tA" "add all" org-transclusion-add-all)
+      ("tl" "link" org-transclusion-make-from-link)
+      ("tm" "mode" org-transclusion-mode)]
+     ;; ["Journal"
+     ;;  ("jd" "date" org-roam-dailies-goto-date)
+     ;;  ("jj" "journal" org-roam-dailies-capture-today)]
+     ["Server"
+      ("sd" "sync db" org-roam-db-sync)
+      ("si" "sync id" org-roam-update-org-id-locations)
+      ;; ("sg" "graph" org-roam-graph)
+      ("ss" "start" org-roam-ui-mode)]]))
+
+(with-eval-after-load 'transient
+  (transient-define-prefix local/bibtex-menu ()
+    "bibtex menu"
+    [("b" "from isbn" local/insert-bibtex-from-isbn)
+      ("d" "from doi" local/insert-bibtex-from-doi)]))
 
 (defun local/goto-first-header ()
   "Jump backward to the first header in the buffer."
@@ -2906,6 +3043,14 @@ With a prefix (C-u), replace the selected region."
     (display-buffer buffer '((display-buffer-reuse-window
                              display-buffer-at-bottom)))))
 
+(with-eval-after-load 'transient
+  (transient-define-prefix local/prog-menu ()
+    "prog menu"
+    [("'" "jump source" org-edit-src-exit)
+     ("l" "lsp" local/lsp-menu)
+     ("f" "format" apheleia-format-buffer)
+     ("j" "jump" local/jump-menu)]))
+
 (use-package helpful
   :ensure t
   :demand t
@@ -3816,72 +3961,27 @@ Analyze the following code and provide suggestions regarding:
   "call different menus depending on what's current major mode."
   (interactive)
   (cond
-   ((string-equal major-mode "org-mode") (local/org-menu))
+   ((string-equal major-mode "bibtex-mode") (local/bibtex-menu))
    ((string-equal major-mode "clojure-mode") (local/clojure-menu))
-   ((string-equal major-mode "clojurescript-mode") (local/clojure-menu))
-   ((string-equal major-mode "clojurec-mode") (local/clojure-menu))
    ((string-equal major-mode "clojure-ts-mode") (local/clojure-menu))
+   ((string-equal major-mode "clojurec-mode") (local/clojure-menu))
+   ((string-equal major-mode "clojurescript-mode") (local/clojure-menu))
    ((string-equal major-mode "emacs-lisp-mode") (local/elisp-menu))
-   ((string-equal major-mode "python-mode") (local/python-menu))
-   ((string-equal major-mode "python-ts-mode") (local/python-menu))
-   ((string-equal major-mode "web-mode") (local/html-menu))
-   ((string-equal major-mode "sql-mode") (local/sql-menu))
    ((string-equal major-mode "js-mode") (local/js-menu))
    ((string-equal major-mode "json-mode") (local/js-menu))
-   ((string-equal major-mode "yaml-mode") (local/yaml-menu))
    ((string-equal major-mode "markdown-mode") (local/markdown-menu))
    ((string-equal major-mode "mermaid-mode") (local/mermaid-menu))
+   ((string-equal major-mode "org-mode") (local/org-menu))
+   ((string-equal major-mode "python-mode") (local/python-menu))
+   ((string-equal major-mode "python-ts-mode") (local/python-menu))
+   ((string-equal major-mode "sql-mode") (local/sql-menu))
+   ((string-equal major-mode "web-mode") (local/html-menu))
+   ((string-equal major-mode "yaml-mode") (local/yaml-menu))
 
    ;; if nothing match, use generic prog menu
    (t (local/prog-menu))))
 (define-key mode-specific-map "\\" 'local/specific-menu-command)
 (keymap-global-set "C-." 'local/specific-menu-command)
-
-(defun local/scratch-buffer ()
-  "Open a new scratch buffer."
-  (interactive)
-  (switch-to-buffer "*scratch*"))
-
-(with-eval-after-load 'transient
-  (transient-define-prefix local/buffer-menu ()
-    "buffer menu"
-    [("b" "switch buffer" consult-buffer)
-     ("B" "ibuffer" ibuffer)
-     ("d" "kill current buffer" kill-this-buffer)
-     ("f" "display popper" popper-toggle)
-     ("j" "cycle popper" popper-cycle)
-     ("k" "pick & kill" kill-buffer)
-     ("K" "kill regexp buffers" kill-matching-buffers-no-ask)
-     ("l" "list buffers" list-buffers)
-     ("r" "rename buffer" rename-buffer)
-     ("s" "open scratch" local/scratch-buffer)
-     ("t" "toggle popper" popper-toggle-type)]))
-
-(with-eval-after-load 'transient
-  (transient-define-prefix local/prog-menu ()
-    "prog menu"
-    [("'" "jump source" org-edit-src-exit)
-     ("l" "lsp" local/lsp-menu)
-     ("f" "format" apheleia-format-buffer)
-     ("j" "jump" local/jump-menu)]))
-
-(with-eval-after-load 'transient
-  (transient-define-prefix local/file-menu ()
-    "file menu"
-    [[("SPC" "locate" consult-locate)
-      ("." "dir other window" dired-jump-other-window)
-      ("/" "grep" local/search-in-files)
-      ("a" "accounts" find-accounts)
-      ("c" "contacts" find-contacts)]
-     [("d" "dired" consult-dir)
-      ("e" "emacs config" find-config)
-      ("f" "find file" find-file)
-      ("l" "find library" find-library)]
-     [("n" "notebook" find-notebook)
-      ("p" "at point" find-file-at-point)
-      ("r" "recently opened files" consult-recent-file)
-      ("s" "save file" save-buffer)
-      ("w" "save as" write-file)]]))
 
 (with-eval-after-load 'transient
   (transient-define-prefix local/git-menu ()
