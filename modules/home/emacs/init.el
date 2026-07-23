@@ -269,6 +269,7 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
 
 (require 'cl-lib)
 (require 'cl-extra)
+(require 'seq)
 
 (defgroup local-ui '()
   "User interface related configuration."
@@ -541,6 +542,9 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   (corfu-cycle t)
   (corfu-preselect 'first)
   :config
+  (setq corfu-popupinfo-delay '(1.25 . 0.5))
+  (corfu-popupinfo-mode 1) ; shows documentation after `corfu-popupinfo-delay'
+
   (global-corfu-mode 1)
   (defun local/corfu-enable-in-minibuffer ()
     (when (where-is-internal #'completion-at-point minibuffer-local-map)
@@ -587,6 +591,7 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
 (use-package cape
   :ensure t
   :demand t
+  :after corfu
   :commands
   (cape-capf-silent)
   :functions
@@ -614,40 +619,46 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   ;; Use cape-dict for dictionary completion.
   (setq cape-dict-file (getenv "WORDLIST"))
   (setq text-mode-ispell-word-completion nil)
-  (add-hook 'completion-at-point-functions #'cape-dabbrev)
-  (add-hook 'completion-at-point-functions #'cape-file)
-  (add-hook 'completion-at-point-functions #'cape-elisp-block)
   :config
-  (defun init-cape-comint-capf ()
-    (setq-local completion-at-point-functions
-                (list (cape-capf-super
-                       #'cape-history
-                       #'cape-dabbrev))))
+  (setq completion-at-point-functions '(cape-dabbrev cape-file cape-elisp-block))
 
-  (defun init-cape-prog-capf ()
-    "Configurează capf-urile pentru prog-mode folosind cape."
-    (setq-local completion-at-point-functions
-                (list (cape-capf-super
-                       #'tempel-expand
-                       #'cape-dabbrev
-                       #'cape-keyword
-                       #'cape-file))))
+  (defun local/cape-super-set-local (capfs &optional individual-capfs)
+    "Set `completion-at-point-functions' to current value plus CAPFS.
+Treat CAPFS and the default value as a super CAPF.  Then append the
+INDIVIDUAL-CAPFS to the list."
+    (let* ((all-for-super (append completion-at-point-functions capfs))
+           (all-minus-global (delq t all-for-super))
+           (cape-super (apply #'cape-capf-super all-minus-global)))
+      (setq-local completion-at-point-functions (append (list cape-super) individual-capfs (list t)))))
 
-  (defun init-cape-text-capf ()
-    (add-hook 'completion-at-point-functions #'cape-file nil t)
-    (add-hook 'completion-at-point-functions #'cape-dict 10 t))
+  (defun local/cape-prog-setup ()
+    "Set up Cape for programming."
+    (local/cape-super-set-local '(tempel-expand) '(cape-dabbrev) '(cape-keyword) '(cape-file)))
+
+  (add-hook 'prog-mode-hook #'local/cape-prog-setup)
+
+  (defun local/cape-text-setup ()
+    "Set up Cape for prose."
+    (local/cape-super-set-local '(cape-dict cape-dabbrev cape-emoji) '(cape-file)))
+
+  (add-hook 'text-mode-hook #'local/cape-text-setup)
+
+  (defun local/cape-comint-setup ()
+    "Set up Cape for comint."
+    (local/cape-super-set-local '(cape-history) '(cape-dabbrev)))
+
+  (add-hook 'comint-mode-hook #'local/cape-comint-setup)
+  (add-hook 'eshell-mode-hook #'local/cape-comint-setup)
 
   (setf (symbol-function 'cape-pcomplete) (cape-capf-interactive #'pcomplete-completions-at-point))
   (advice-add 'pcomplete-completions-at-point :around #'cape-capf-silent)
 
   ;; Org
   (with-eval-after-load 'org
+
     (require 'cape-keyword)
-    (add-hook 'org-mode-hook #'local/cape-capf-setup-org)
-    (defun local/cape-capf-setup-org ()
-      (require 'org-roam)
-      (add-to-list 'completion-at-point-functions #'org-roam-complete-link-at-point)
-      (add-to-list 'completion-at-point-functions #'local/cape-org-src-keywords))
+    (require 'org-roam)
+
     (defun local/cape-org-src-keywords ()
       "Complete keywords in Org babel source blocks.
 Looks up the source block's language in `cape-keyword-list' to
@@ -665,12 +676,13 @@ provide language-specific keyword completion."
             (when bounds
               (list (car bounds) (cdr bounds) kw
                     :annotation-function (lambda (_) " Keyword")
-                    :exclusive 'no)))))))
-  (add-hook 'comint-mode-hook #'init-cape-comint-capf)
-  (add-hook 'eshell-mode-hook #'init-cape-comint-capf)
-  (add-hook 'prog-mode-hook  #'init-cape-prog-capf)
-  (add-hook 'text-mode-hook  #'init-cape-text-capf)
-  )
+                    :exclusive 'no))))))
+
+    (defun local/cape-org-setup ()
+      "Set up Cape for org-mode"
+      (local/cape-super-set-local '(org-roam-complete-link-at-point) '(local/cape-org-src-keywords)))
+
+    (add-hook 'org-mode-hook #'local/cape-org-setup)))
 
 (use-package orderless
   :ensure t
@@ -2722,6 +2734,23 @@ With a prefix (C-u), replace the selected region."
     :custom
     (rmh-elfeed-org-files (list (expand-file-name "elfeed.org" local/private-dir))))
 
+(use-package elfeed-score
+  :ensure t
+  :after elfeed
+  :config
+  ;; 1. Activează motorul de calcul al scorurilor
+  (elfeed-score-enable)
+
+  ;; 2. Indică-i pachetului de unde să încarce fișierul tău cu reguli
+  (elfeed-score-load-score-file (expand-file-name "elfeed.score" local/private-dir))
+
+  ;; 3. (Opțional dar recomandat) Înlocuiește funcția standard de afișare
+  ;; pentru a arăta scorul fiecărui articol direct în lista elfeed-search
+  (setq elfeed-search-print-entry-function #'elfeed-score-print-entry)
+
+  ;; 4. Adaugă o scurtătură în interfața de căutare pentru a apela meniul elfeed-score
+  (define-key elfeed-search-mode-map "=" elfeed-score-map))
+
 (use-package direnv
   :ensure t
   :demand t
@@ -2768,10 +2797,16 @@ With a prefix (C-u), replace the selected region."
   :config
   (add-hook 'prog-mode-hook  'rainbow-delimiters-mode))
 
+(defun local/enable-indent-guides-safely ()
+  "Activează highlight-indent-guides, exceptând bufferele invizibile org-src."
+  (unless (string-match-p "\\` \\*org-src-fontification" (buffer-name))
+    (highlight-indent-guides-mode 1)))
+
 (use-package highlight-indent-guides
   :ensure t
   :demand t
-  :hook (prog-mode . highlight-indent-guides-mode)
+  ;; Am înlocuit apelul direct cu funcția noastră de siguranță
+  :hook (prog-mode . local/enable-indent-guides-safely)
   :custom
   (highlight-indent-guides-method 'character) ; use characters for indent guidesg
   (highlight-indent-guides-responsive t); highlight indentation based on current line
