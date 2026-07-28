@@ -12,6 +12,7 @@
   dpom-kitty.enable = true;
   dpom-office.enable = true;
   dpom-opencode.enable = true;
+  dpom-oh-my-pi.enable = true;
   dpom-pi.enable = true;
   dpom-rofi.enable = true;
   dpom-sway.enable = true;

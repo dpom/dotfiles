@@ -46,6 +46,7 @@
     ./waybar.nix
     ./kanshi.nix
     ./gemini.nix
+    ./oh-my-pi.nix
     ./opencode.nix
   
   ];
