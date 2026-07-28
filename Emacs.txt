@@ -1031,7 +1031,7 @@ INDIVIDUAL-CAPFS to the list."
 
   (defun local/cape-prog-setup ()
     "Set up Cape for programming."
-    (local/cape-super-set-local '(tempel-expand) '(cape-dabbrev) '(cape-keyword) '(cape-file)))
+    (local/cape-super-set-local '(tempel-expand) '(cape-dabbrev cape-keyword cape-file)))
 
   (add-hook 'prog-mode-hook #'local/cape-prog-setup)
 
@@ -5801,30 +5801,24 @@ Keybindings occupy a central place in emacs optimization. I'd like a coherent, e
                                    (?d . defun)
                                    (?. . sentence)))
   :config
-
   ;; custom indicator
   (setq meow-replace-state-name-list '((normal . "🅝")
                                        (beacon . "🅑")
                                        (insert . "🅘")
                                        (motion . "🅜")
                                        (keypad . "🅚")))
-
   ;; custom variables
   (setq meow-esc-delay 0.1)
-
   (meow-thing-register 'angle '(pair ("<")
                                      (">"))
                        '(pair ("<")
                               (">")))
-
   (add-to-list 'meow-char-thing-table '(?< . angle))
-
   (add-to-list 'meow-mode-state-list '(cargo-process-mode . motion))
   (add-to-list 'meow-mode-state-list '(emms-playlist-mode . motion))
   (add-to-list 'meow-mode-state-list '(agent-shell-mode . insert))
   (add-to-list 'meow-mode-state-list '(agent-shell-viewport-view-mode . motion))
   (add-to-list 'meow-mode-state-list '(agent-shell-viewport-edit-mode . insert))
-
   (meow-setup)
   (meow-setup-indicator)
   (meow-global-mode 1)

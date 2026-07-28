@@ -633,7 +633,7 @@ INDIVIDUAL-CAPFS to the list."
 
   (defun local/cape-prog-setup ()
     "Set up Cape for programming."
-    (local/cape-super-set-local '(tempel-expand) '(cape-dabbrev) '(cape-keyword) '(cape-file)))
+    (local/cape-super-set-local '(tempel-expand) '(cape-dabbrev cape-keyword cape-file)))
 
   (add-hook 'prog-mode-hook #'local/cape-prog-setup)
 
@@ -2828,7 +2828,7 @@ With a prefix (C-u), replace the selected region."
   :ensure t
   :demand t
   :custom
-  (treesit-auto-install 'prompt)
+  (treesit-auto-install nil)
   :config
   (treesit-auto-add-to-auto-mode-alist 'all)
   (global-treesit-auto-mode))
