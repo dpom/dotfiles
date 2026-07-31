@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# update-oh-my-pi
+# Updates the oh-my-pi package to the latest GitHub release.
+# Updates version and SHA256 hash in modules/home/oh-my-pi.nix.
+# After running, re-tangle Config.txt if needed.
+
+cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
+
+echo "Fetching latest release..."
+LATEST=$(curl -s https://api.github.com/repos/can1357/oh-my-pi/releases/latest | grep '"tag_name"' | sed 's/.*"v\(.*\)".*/\1/')
+echo "Latest version: $LATEST"
+
+echo "Downloading omp-linux-x64..."
+curl -fsSL --connect-timeout 10 --max-time 300 \
+  "https://github.com/can1357/oh-my-pi/releases/download/v${LATEST}/omp-linux-x64" \
+  -o /tmp/omp-linux-x64
+
+echo "Computing hash..."
+HASH=$(sha256sum /tmp/omp-linux-x64 | cut -d' ' -f1)
+HASH_SRI=$(nix hash convert --to sri sha256:"$HASH" 2>/dev/null || echo "sha256-$HASH")
+echo "New hash: $HASH_SRI"
+
+rm -f /tmp/omp-linux-x64
+
+nix_file="modules/home/oh-my-pi.nix"
+
+echo "Updating $nix_file..."
+sed -i "s/^  version = \".*\";/  version = \"$LATEST\";/" "$nix_file"
+sed -i "s|^      hash = \".*\";|      hash = \"$HASH_SRI\";|" "$nix_file"
+
+echo "✓ oh-my-pi updated to v${LATEST}"
+echo "Run 'ent generate' to tangle, then 'ent home-update' to apply."

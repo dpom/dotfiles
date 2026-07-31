@@ -4126,30 +4126,24 @@ Analyze the following code and provide suggestions regarding:
                                    (?d . defun)
                                    (?. . sentence)))
   :config
-
   ;; custom indicator
   (setq meow-replace-state-name-list '((normal . "🅝")
                                        (beacon . "🅑")
                                        (insert . "🅘")
                                        (motion . "🅜")
                                        (keypad . "🅚")))
-
   ;; custom variables
   (setq meow-esc-delay 0.1)
-
   (meow-thing-register 'angle '(pair ("<")
                                      (">"))
                        '(pair ("<")
                               (">")))
-
   (add-to-list 'meow-char-thing-table '(?< . angle))
-
   (add-to-list 'meow-mode-state-list '(cargo-process-mode . motion))
   (add-to-list 'meow-mode-state-list '(emms-playlist-mode . motion))
   (add-to-list 'meow-mode-state-list '(agent-shell-mode . insert))
   (add-to-list 'meow-mode-state-list '(agent-shell-viewport-view-mode . motion))
   (add-to-list 'meow-mode-state-list '(agent-shell-viewport-edit-mode . insert))
-
   (meow-setup)
   (meow-setup-indicator)
   (meow-global-mode 1)

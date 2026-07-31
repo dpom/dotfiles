@@ -5,6 +5,7 @@
   ];
 
   # xsession.windowManager.command = "${pkgs.nixgl.auto.nixGLDefault}/bin/nixGL ${config.xsession.windowManager.i3.package}/bin/i3";
+  dpom-ai.enable = true;
   dpom-bash.enable = true;
   dpom-direnv.enable = true;
   dpom-dunst.enable = true;
@@ -12,8 +13,8 @@
   dpom-i3.enable = true;
   dpom-kitty.enable = true;
   dpom-office.enable = true;
-  dpom-oh-my-pi.enable = true;
   dpom-rofi.enable = true;
+  dpom-oh-my-pi.enable = true;
   dpom-pi.enable = true;
 
   home.packages = with pkgs; [

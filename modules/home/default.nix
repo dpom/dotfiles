@@ -45,9 +45,9 @@
     ./swaync.nix
     ./waybar.nix
     ./kanshi.nix
-    ./gemini.nix
-    ./oh-my-pi.nix
-    ./opencode.nix
+      ./gemini.nix
+      ./oh-my-pi.nix
+      ./opencode.nix
   
   ];
   nix = {

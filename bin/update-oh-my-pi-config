@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# update-oh-my-pi-config
+# Queries local Ollama and LM Studio instances for available models
+# and outputs the providers configuration block for ~/.omp/agent/models.yml.
+#
+# Usage:
+#   ./bin/update-oh-my-pi-config          # print YAML to stdout
+#   ./bin/update-oh-my-pi-config --write  # write directly to ~/.omp/agent/models.yml
+
+write_mode=false
+if [ "${1:-}" = "--write" ]; then
+  write_mode=true
+fi
+
+OLLAMA_MODELS=""
+if curl -s -f http://localhost:11434/api/tags > /dev/null 2>&1; then
+  OLLAMA_MODELS=$(curl -s http://localhost:11434/api/tags | jq -r '.models[].name' | while IFS= read -r model; do
+    ctx=$(curl -s http://localhost:11434/api/show -d "{\"model\": \"$model\"}" | jq -r '((.parameters // "") | capture("num_ctx (?<n>[0-9]+)") | .n) // ""')
+    if [ -z "$ctx" ]; then
+      ctx=4096
+    fi
+    name=$(echo "$model" | sed 's/:.*//' | sed 's/-/ /g')
+    echo "    - id: \"$model\""
+    echo "      name: \"$name (Local)\""
+    echo "      contextWindow: $ctx"
+    echo "      maxTokens: $((ctx / 2))"
+  done)
+  if [ -n "$OLLAMA_MODELS" ]; then
+    OLLAMA_MODELS=$(printf "\n%s" "$OLLAMA_MODELS")
+  fi
+else
+  echo "Warning: Ollama is not running." >&2
+fi
+
+LMSTUDIO_MODELS=""
+if curl -s -f http://localhost:1234/v1/models > /dev/null 2>&1; then
+  LMSTUDIO_MODELS=$(curl -s http://localhost:1234/v1/models | jq -r '
+    [.data[] | {
+      id: .id,
+      name: ((.id | split(":")[0] | gsub("-"; " ")) + " (Local)"),
+      contextWindow: 8192,
+      maxTokens: 4096
+    }] | .[] | "    - id: \"\(.id)\"\n      name: \"\(.name)\"\n      contextWindow: \(.contextWindow)\n      maxTokens: \(.maxTokens)"
+  ')
+  if [ -n "$LMSTUDIO_MODELS" ]; then
+    LMSTUDIO_MODELS=$(printf "\n%s" "$LMSTUDIO_MODELS")
+  fi
+else
+  echo "Warning: LM Studio is not running." >&2
+fi
+
+output() {
+  cat <<YAML
+providers:
+  ollama:
+    baseUrl: http://localhost:11434/v1
+    api: openai-completions
+    apiKey: ollama
+    models:$OLLAMA_MODELS
+
+  lmstudio:
+    baseUrl: http://localhost:1234/v1
+    api: openai-completions
+    apiKey: lm-studio
+    models:$LMSTUDIO_MODELS
+
+  anthropic:
+    api: anthropic-messages
+    auth: none
+    models: []
+
+  openai:
+    api: openai-completions
+    auth: none
+    models: []
+YAML
+}
+
+if $write_mode; then
+  OMP_AGENT_DIR="$HOME/.omp/agent"
+  mkdir -p "$OMP_AGENT_DIR"
+  output > "$OMP_AGENT_DIR/models.yml"
+  echo "Written to $OMP_AGENT_DIR/models.yml"
+else
+  output
+fi
