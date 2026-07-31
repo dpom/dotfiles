@@ -30,12 +30,12 @@
 
 - [x] 6.1 Add module definition to `Config.txt` (not edit generated `.nix` directly)
 - [x] 6.2 Run `ent generate` to tangle `Config.txt` to generated files
-- [ ] 6.3 Commit both `Config.txt` source and generated `.nix` files
+- [x] 6.3 Commit both `Config.txt` source and generated `.nix` files
 
 ## 7. Validation
 
-- [ ] 7.1 Run `home-manager switch` on mary and verify `omp --version` works
+- [x] 7.1 Run `home-manager switch` on mary and verify `omp --version` works
 - [ ] 7.2 Run `home-manager switch` on bob and verify `omp --version` works
-- [ ] 7.3 Verify `omp completions bash` generates valid output
-- [ ] 7.4 Verify existing Pi module still works (`pi --version`)
+- [x] 7.3 Verify `omp completions bash` generates valid output
+- [x] 7.4 Verify existing Pi module still works (`pi --version`)
 - [ ] 7.5 Run `openspec validate install-oh-my-pi --type change --strict`
