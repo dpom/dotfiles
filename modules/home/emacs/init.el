@@ -593,7 +593,7 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   :demand t
   :after corfu
   :commands
-  (cape-capf-silent)
+  (cape-wrap-silent)
   :functions
   (cape-capf-buster
    cape-capf-super)
@@ -651,7 +651,7 @@ INDIVIDUAL-CAPFS to the list."
   (add-hook 'eshell-mode-hook #'local/cape-comint-setup)
 
   (setf (symbol-function 'cape-pcomplete) (cape-capf-interactive #'pcomplete-completions-at-point))
-  (advice-add 'pcomplete-completions-at-point :around #'cape-capf-silent)
+  (advice-add 'pcomplete-completions-at-point :around #'cape-wrap-silent)
 
   ;; Org
   (with-eval-after-load 'org
