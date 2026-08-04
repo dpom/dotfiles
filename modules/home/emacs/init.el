@@ -1486,6 +1486,10 @@ Cheia BibTeX generată va avea formatul autorAnCuvantTitlu (ex: knuth1997Art)."
   (citar-bibliography (list local/bibliography-file))
   ;; Spune-i pachetului citar unde să caute notițe
   (citar-notes-paths (list local/notes-dir))
+  ;; Urmărirea citărilor folosește citar, nu procesorul de bază
+  (org-cite-follow-processor 'citar)
+  ;; Deschide direct notița, nu meniul citar
+  (citar-default-action 'citar-open-notes)
   :hook
   ;; Activează completarea la cursor în fișierele relevante
   (org-mode . citar-capf-setup))
