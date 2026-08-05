@@ -1623,12 +1623,25 @@ emacs has countless search commands in buffers. The problem is that there are to
       ("d" "dired" consult-dir)
       ("e" "emacs config" find-config)
       ("f" "find file" find-file)
+      ("g" "speedbar" speedbar-get-focus)
       ("l" "find library" find-library)]
      [("n" "notebook" find-notebook)
       ("p" "at point" find-file-at-point)
       ("r" "recently opened files" consult-recent-file)
       ("s" "save file" save-buffer)
       ("w" "save as" write-file)]]))
+#+end_src
+
+*** Speedbar
+
+#+begin_src emacs-lisp
+(use-package speedbar
+  :ensure nil
+  :commands (speedbar)
+  :config
+  (setq speedbar-prefer-window t)
+  (setq speedbar-use-images nil)
+  (setq speedbar-directory-exclude-regexp nil))
 #+end_src
 
 *** Windows
@@ -3159,6 +3172,7 @@ aplicatii care aduc email-urile local. S-ar parea (7) ca cea mai buna este
   (require 'subr-x)
   (setq gptel-playback t
         gptel-default-mode 'org-mode
+        gptel-model 'gemma4:e4b
         gptel-default-model 'gemma4:e4b
         gptel-cache '(message system tool)
         gptel-track-media t

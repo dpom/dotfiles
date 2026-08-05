@@ -1051,12 +1051,21 @@ provide language-specific keyword completion."
       ("d" "dired" consult-dir)
       ("e" "emacs config" find-config)
       ("f" "find file" find-file)
+      ("g" "speedbar" speedbar-get-focus)
       ("l" "find library" find-library)]
      [("n" "notebook" find-notebook)
       ("p" "at point" find-file-at-point)
       ("r" "recently opened files" consult-recent-file)
       ("s" "save file" save-buffer)
       ("w" "save as" write-file)]]))
+
+(use-package speedbar
+  :ensure nil
+  :commands (speedbar)
+  :config
+  (setq speedbar-prefer-window t)
+  (setq speedbar-use-images nil)
+  (setq speedbar-directory-exclude-regexp nil))
 
 (require 'windmove)
 
@@ -2234,6 +2243,7 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
   (require 'subr-x)
   (setq gptel-playback t
         gptel-default-mode 'org-mode
+        gptel-model 'gemma4:e4b
         gptel-default-model 'gemma4:e4b
         gptel-cache '(message system tool)
         gptel-track-media t
