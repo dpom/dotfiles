@@ -116,7 +116,15 @@
     (sh-out "cp" "-r" (str store-path "/.") tmp)
     (let [{:keys [exit err]} (p/sh {:dir tmp} "node" script "--strict" "--data-only")]
       (when (not= 0 exit)
-        (die (str "model data hydration failed for v" version ": " (or err "")))))
+        (die (str "model data hydration failed for v" version ": " (or err ""))))
+      (let [gen-dir (java.io.File. (str tmp "/packages/ai/src/providers/data"))
+            files (when (.isDirectory gen-dir) (.listFiles gen-dir))]
+        (when (or (nil? files)
+                  (not (some #(= ".manifest.json" (.getName %)) files))
+                  (not (some (fn [f] (and (str/ends-with? (.getName f) ".json")
+                                          (not= ".manifest.json" (.getName f))))
+                             files)))
+          (die (str "hydration produced no model data in " (.getPath gen-dir))))))
     (sh-out "rm" "-rf" (str data-dir "/" version))
     (sh-out "mkdir" "-p" (str data-dir "/" version))
     (sh-out "cp" "-r" (str tmp "/packages/ai/src/providers/data/.") (str data-dir "/" version))
