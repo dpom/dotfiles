@@ -20,20 +20,26 @@ let
 
   pi-coding-agent = pkgs.buildNpmPackage rec {
     pname = "pi-coding-agent";
-    version = "0.80.3";
+    version = "0.84.1";
     src = pkgs.fetchFromGitHub {
       owner = "earendil-works";
       repo = "pi";
       rev = "v${version}";
-      hash = "sha256-wQTrWKsb2HCGwzSAFEk8NWSDpqxSY/lv1/R6ghcmbaA=";
+      hash = "sha256-lg+I4S/aAjazjhGZU567ow+rksoNiqOqjHl//TjAMes=";
     };
-    npmDepsHash = "sha256-geh8LH88OZybFXkR/jDeTdew6TNMdFM6jhCSYKn//dU=";
+    modelData = ./pi-model-data/${version};
+    postPatch = ''
+      cp -r ${modelData}/. packages/ai/src/providers/data/
+    '';
+    npmDepsHash = lib.fakeHash;
     npmRebuildFlags = [ "--ignore-scripts" ];
     npmBuildScript = "build";
     npmWorkspace = "packages/coding-agent";
     buildPhase = ''
       runHook preBuild
+      node packages/ai/scripts/check-model-data.ts
       npx tsgo -p packages/ai/tsconfig.build.json
+      cp -r packages/ai/src/providers/data packages/ai/dist/providers/data
       npx tsgo -p packages/tui/tsconfig.build.json
       npx tsgo -p packages/agent/tsconfig.build.json
       npm run build --workspace=packages/coding-agent
