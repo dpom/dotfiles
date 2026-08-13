@@ -2,14 +2,14 @@
 let
   pi-acp = pkgs.buildNpmPackage rec {
     pname = "pi-acp";
-    version = "0.0.31";
+    version = "0.0.33";
     src = pkgs.fetchFromGitHub {
       owner = "svkozak";
       repo = "pi-acp";
       rev = "v${version}";
-      hash = "sha256-bM3V/3fxkY2Ib+OyfT82StIIRSLXGDuYUbt1CZKpTuo=";
+      hash = "sha256-fENOOdooi4XbIDjcr02q8qzUCzdo2IW/Bca43SawZ44=";
     };
-    npmDepsHash = "sha256-qN+b/tMbnJLkWjotl3XrA0nfZ3KT/mT6gM+n3Qiz8Wk=";
+    npmDepsHash = "sha256-/fX79XucKojL/6gZbK5eizEfrXso8rlTgiHfJffmDuY=";
     dontStrip = true;
     nativeBuildInputs = with pkgs; [ makeBinaryWrapper ];
     buildInputs = with pkgs; [ nodejs_24 ];

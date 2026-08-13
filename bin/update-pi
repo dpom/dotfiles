@@ -1,0 +1,133 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# update-pi
+# Pins both pi agent packages (pi-coding-agent and pi-acp) to the latest
+# GitHub releases. Edits the pi module block in Config.txt (the Org source of
+# truth), then re-tangles via ./bin/generate-admin so modules/home/pi.nix
+# stays in sync. Stops after updating files: no home-manager switch, no
+# nixos-rebuild, no git.
+#
+# npmDepsHash (a hash of the npm dependency tree) cannot be derived from the
+# source tarball, so the script temporarily sets lib.fakeHash, builds the
+# package, parses the real hash from the `got:` error line, and writes it back.
+#
+# pi-coding-agent is capped at v0.80.3: upstream v0.84.1+ generates
+# packages/ai/src/providers/data/*.json from live APIs at build time
+# (npm run generate-models), which breaks the hermetic Nix build. Until the
+# module recipe is updated to handle that, the script skips any newer release.
+
+cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
+
+CONFIG="Config.txt"
+HOST="$(hostname)"
+
+# pname | owner/repo | owner | repo | max buildable version (empty = no cap)
+pkgs=(
+  "pi-acp|svkozak/pi-acp|svkozak|pi-acp|"
+  "pi-coding-agent|earendil-works/pi|earendil-works|pi|0.80.3"
+)
+
+latest_tag () { # $1 = owner/repo
+  curl -fsSL --connect-timeout 10 --max-time 60 "https://api.github.com/repos/$1/releases/latest" \
+    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+}
+
+pinned_version () { # $1 = pname
+  sed -n '/^    pname = "'"$1"'";$/{n;s|^    version = "\([^"]*\)";$|\1|p;}' "$CONFIG"
+}
+
+declare -A TAG VERSION CURRENT SRI
+
+for spec in "${pkgs[@]}"; do
+  IFS='|' read -r pname gh owner repo maxbuildable <<< "$spec"
+  tag=$(latest_tag "$gh")
+  version=${tag#v}
+  if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "error: unexpected release tag '$tag' for $gh; expected vX.Y.Z" >&2
+    exit 1
+  fi
+  TAG[$pname]=$tag
+  VERSION[$pname]=$version
+  CURRENT[$pname]=$(pinned_version "$pname")
+  if [[ -n "$maxbuildable" && "$(printf '%s\n%s\n' "$maxbuildable" "$version" | sort -V | tail -1)" == "$version" && "$version" != "$maxbuildable" ]]; then
+    echo "⚠  $pname: latest $tag exceeds the max buildable version v${maxbuildable} (upstream generates provider data from live APIs at build time, breaking the hermetic Nix build). Keeping v${CURRENT[$pname]}; update the module recipe to lift this cap."
+    VERSION[$pname]=${CURRENT[$pname]}
+    continue
+  fi
+  echo "$pname: current v${CURRENT[$pname]}, latest $tag"
+done
+
+# idempotence: both already at latest -> nothing to do
+any_change=0
+for pname in "${!VERSION[@]}"; do
+  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] || any_change=1
+done
+if (( any_change == 0 )); then
+  echo "✓ pi already up to date (pi-acp ${CURRENT[pi-acp]}, pi-coding-agent ${CURRENT[pi-coding-agent]})"
+  exit 0
+fi
+
+# --- source tarball hashes -------------------------------------------------
+for spec in "${pkgs[@]}"; do
+  IFS='|' read -r pname gh owner repo <<< "$spec"
+  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
+  echo "Prefetching source tarball for $pname ..."
+  raw=$(nix-prefetch-url --unpack "https://github.com/${owner}/${repo}/archive/refs/tags/${TAG[$pname]}.tar.gz" 2>&1 | tail -1)
+  SRI[$pname]=$(nix hash convert --to sri "sha256:$raw")
+  echo "  src hash: ${SRI[$pname]}"
+done
+
+# --- patch Config.txt: version + src hash ----------------------------------
+echo "Patching $CONFIG ..."
+for spec in "${pkgs[@]}"; do
+  IFS='|' read -r pname gh owner repo <<< "$spec"
+  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
+  sed -i '/^    pname = "'"$pname"'";$/{n;s|^    version = "[^"]*";$|    version = "'"${VERSION[$pname]}"'";|;}' "$CONFIG"
+  sed -i "/^      owner = \"${owner}\";\$/,/^      hash = \"[^\"]*\";\$/s|^      hash = \"[^\"]*\";\$|      hash = \"${SRI[$pname]}\";|" "$CONFIG"
+done
+
+./bin/generate-admin
+
+# --- npmDepsHash discovery (fake-hash build) ------------------------------
+for spec in "${pkgs[@]}"; do
+  IFS='|' read -r pname gh owner repo <<< "$spec"
+  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
+  echo "Discovering npmDepsHash for $pname (${TAG[$pname]}) ..."
+  sri_esc=${SRI[$pname]//\//\\/}
+  sed -i "/^      hash = \"${sri_esc}\";\$/ { n; n; s|^    npmDepsHash = .*;\$|    npmDepsHash = lib.fakeHash;|; }" "$CONFIG"
+  ./bin/generate-admin > /dev/null 2>&1
+  expr="let c = (builtins.getFlake \"$PWD\").homeConfigurations.\"dan@${HOST}\".config; in builtins.filter (p: (p.pname or \"\") == \"$pname\") c.home.packages"
+  echo "  building with lib.fakeHash to discover the real hash ..."
+  out=$(nix build --impure --no-link --expr "$expr" 2>&1 || true)
+  got=$(echo "$out" | sed -n 's/.*got:[[:space:]]*\(sha256-[A-Za-z0-9+/=]\+\).*/\1/p' | head -1)
+  if [[ -z "$got" ]]; then
+    echo "error: could not parse npmDepsHash from build output for $pname" >&2
+    echo "$out" | tail -20 >&2
+    echo "Set npmDepsHash manually in $CONFIG under $pname." >&2
+    exit 1
+  fi
+  echo "  npmDepsHash: $got"
+  sed -i "/^      hash = \"${sri_esc}\";\$/ { n; n; s|^    npmDepsHash = .*;\$|    npmDepsHash = \"${got}\";|; }" "$CONFIG"
+done
+
+# --- final tangle + verify ---------------------------------------------------
+./bin/generate-admin
+
+for spec in "${pkgs[@]}"; do
+  IFS='|' read -r pname gh owner repo <<< "$spec"
+  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
+  newver=$(pinned_version "$pname")
+  if [[ "$newver" != "${VERSION[$pname]}" ]] || ! grep -q "\"${SRI[$pname]}\"" "$CONFIG"; then
+    echo "error: failed to patch $CONFIG for $pname; manual edit required" >&2
+    exit 1
+  fi
+done
+if grep -q 'npmDepsHash = lib.fakeHash;' "$CONFIG"; then
+  echo "error: a lib.fakeHash npmDepsHash was left behind in $CONFIG; manual edit required" >&2
+  exit 1
+fi
+
+echo "✓ pi pinned to pi-acp ${VERSION[pi-acp]}, pi-coding-agent ${VERSION[pi-coding-agent]}"
+echo "Review the diff, then apply with: ent update-home (or 'home-manager switch --flake .#dan@$(hostname)')"
+echo "Commit Config.txt, modules/home/pi.nix, and this script together."

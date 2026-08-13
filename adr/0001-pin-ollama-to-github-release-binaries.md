@@ -15,11 +15,11 @@ Pin ollama to an exact `ollama/ollama` GitHub release in the NixOS ollama module
 - CPU hosts (`dpom-ollama.acceleration` unset, e.g. bob): `ollama-linux-amd64`.
 - ROCm hosts (`dpom-ollama.acceleration = "rocm"`, e.g. mary): `ollama-linux-amd64-rocm`.
 
-Both variant hashes are pinned alongside the version; the existing `acceleration` option selects the variant. A new `bin/update-ollama` script resolves the latest release, downloads both assets, and updates version + both hashes in `Config.txt`, then re-tangles. This deliberately abandons "track nixpkgs" as the ollama upgrade path.
+Both variant hashes are pinned alongside the version; the existing `acceleration` option selects the variant. A new `bin/update-ollama` script resolves the latest release, reads both asset digests from the GitHub release API (falling back to a download + `sha256sum` if the digest is missing), and updates version + both hashes in `Config.txt`, then re-tangles. This deliberately abandons "track nixpkgs" as the ollama upgrade path.
 
 ## Consequences
 
-- **Easier**: ollama can be brought to its exact latest upstream release on demand without waiting for nixpkgs; hash computation is a simple download + `sha256sum`.
+- **Easier**: ollama can be brought to its exact latest upstream release on demand without waiting for nixpkgs; hash computation uses the GitHub API asset digest, with a download + `sha256sum` fallback.
 - **Easier**: the pin is deterministic and reviewable in git.
 - **Harder**: the repo is now responsible for keeping ollama current; it no longer inherits nixpkgs security/version updates automatically.
 - **Harder**: the prebuilt ROCm binary must run correctly with the module's existing ROCm packages on mary; if not, fall back to an `overrideAttrs` source build of `pkgs.ollama`.
