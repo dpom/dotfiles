@@ -1,106 +1,177 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env bb
+; update-ollama
+; Pins the ollama NixOS service to the latest ollama/ollama GitHub release.
+; Edits the ollama module block in Config.txt (the Org source of truth), then
+; re-tangles via ./bin/generate-admin so modules/nixos/ollama.nix stays in sync.
+; Stops after updating files: no nixos-rebuild, no home-manager switch, no git.
+;
+; Release assets (ollama-linux-amd64.tar.zst and -rocm) are large (~1-1.4 GB),
+; so the script reads their sha256 from the GitHub API asset `digest` field and
+; only falls back to curl | sha256sum if the digest is missing. Both digests
+; were verified against the downloaded v0.32.8 assets.
+;
+; If upstream renames the assets, update the two asset names below.
 
-# update-ollama
-# Pins the ollama NixOS service to the latest ollama/ollama GitHub release.
-# Edits the ollama module block in Config.txt (the Org source of truth), then
-# re-tangles via ./bin/generate-admin so modules/nixos/ollama.nix stays in sync.
-# Stops after updating files: no nixos-rebuild, no home-manager switch, no git.
-#
-# Release assets (ollama-linux-amd64.tar.zst and -rocm) are large (~1-1.4 GB),
-# so the script reads their sha256 from the GitHub API asset `digest` field and
-# only falls back to curl | sha256sum if the digest is missing. Both digests
-# were verified against the downloaded v0.32.8 assets.
-#
-# If upstream renames the assets, update the two asset names below.
+(require '[babashka.curl :as curl]
+         '[babashka.process :as p]
+         '[cheshire.core :as json]
+         '[clojure.string :as str])
 
-cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
+(def config-file "Config.txt")
+(def block-open #"^#\+begin_src nix :tangle modules/nixos/ollama\.nix$")
+(def block-close #"^#\+end_src$")
+(def repo "ollama/ollama")
+(def cpu-asset "ollama-linux-amd64.tar.zst")
+(def rocm-asset "ollama-linux-amd64-rocm.tar.zst")
 
-CONFIG="Config.txt"
-BLOCK_OPEN='^#[+]begin_src nix :tangle modules/nixos/ollama.nix$'
-BLOCK_CLOSE='^#[+]end_src$'
-SED_OPEN="\\|${BLOCK_OPEN}|"
-SED_CLOSE="\\|${BLOCK_CLOSE}|"
-REPO="ollama/ollama"
-CPU_ASSET="ollama-linux-amd64.tar.zst"
-ROCM_ASSET="ollama-linux-amd64-rocm.tar.zst"
+(def repo-root
+  (-> (System/getProperty "babashka.file")
+      java.io.File.
+      .getCanonicalFile
+      .getParentFile
+      .getParentFile
+      .getPath))
 
-# --- current pinned version -------------------------------------------------
-CURRENT=$(sed -n "${SED_OPEN},${SED_CLOSE}s|^  version = \"\([^\"]*\)\";$|\1|p" "$CONFIG" | head -1)
-if [[ -z "$CURRENT" ]]; then
-  echo "error: could not read the pinned ollama version from $CONFIG" >&2
-  exit 1
-fi
-echo "Current pinned version: v${CURRENT}"
+(defn die [msg]
+  (binding [*out* *err*]
+    (println (str "error: " msg)))
+  (System/exit 1))
 
-# --- latest release from GitHub API ----------------------------------------
-echo "Fetching latest release from GitHub API..."
-RELEASE=$(curl -fsSL --connect-timeout 10 --max-time 60 "https://api.github.com/repos/${REPO}/releases/latest")
-TAG=$(echo "$RELEASE" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
-if [[ -z "$TAG" ]]; then
-  echo "error: could not parse tag_name from GitHub API response" >&2
-  exit 1
-fi
-VERSION=${TAG#v}
-if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "error: unexpected release tag '$TAG'; expected vX.Y.Z" >&2
-  exit 1
-fi
-echo "Latest release: $TAG"
+(defn sh-out [& args]
+  (let [opts (if (map? (last args)) (last args) {})
+        args (if (map? (last args)) (butlast args) args)
+        {:keys [out err exit]} (apply p/sh opts args)]
+    (when (not= 0 exit)
+      (binding [*out* *err*]
+        (println (str "error: command failed: " (str/join " " args)))
+        (when (seq err) (println err)))
+      (System/exit 1))
+    (str/trim out)))
 
-# --- idempotence ------------------------------------------------------------
-if [[ "$VERSION" == "$CURRENT" ]]; then
-  echo "✓ ollama already up to date at v${VERSION}"
-  exit 0
-fi
+(defn block-range [lines]
+  (let [i (first (keep-indexed (fn [idx l] (when (re-find block-open l) idx)) lines))
+        j (first (keep-indexed (fn [idx l]
+                                 (when (and (some? i) (> idx i))
+                                   (when (re-find block-close l) idx)))
+                               lines))]
+    (when (and (some? i) (some? j)) [i j])))
 
-# --- asset hashes (API digest, download fallback) ---------------------------
-compute_hash () {
-  local asset="$1"
-  local hex
-  hex=$(echo "$RELEASE" | awk -v a="$asset" '
-    /"name"[[:space:]]*:/ { block = ($0 ~ a) }
-    block && /"digest"[[:space:]]*:/ {
-      sub(/.*"digest"[[:space:]]*:[[:space:]]*"/, "")
-      sub(/".*/, "")
-      print
-      exit
-    }')
-  hex=${hex#sha256:}
-  if [[ "$hex" =~ ^[0-9a-f]{64}$ ]]; then
-    echo "$hex"
-  else
-    echo "Asset digest missing for $asset; downloading to compute hash..." >&2
-    curl -fsSL --connect-timeout 10 --max-time 1800 \
-      "https://github.com/${REPO}/releases/download/${TAG}/${asset}" \
-      | sha256sum | cut -d' ' -f1
-  fi
-}
+(defn pinned-version [lines]
+  (when-let [[i j] (block-range lines)]
+    (some (fn [line] (second (re-find #"^  version = \"([^\"]*)\";$" line)))
+          (subvec (vec lines) (inc i) j))))
 
-CPU_HEX=$(compute_hash "$CPU_ASSET")
-ROCM_HEX=$(compute_hash "$ROCM_ASSET")
-CPU_SRI=$(nix hash convert --to sri "sha256:$CPU_HEX")
-ROCM_SRI=$(nix hash convert --to sri "sha256:$ROCM_HEX")
-echo "CPU hash:   $CPU_SRI"
-echo "ROCm hash:  $ROCM_SRI"
+(defn patch-line-after [lines prev-re target-re replacement]
+  (vec (map-indexed
+        (fn [idx line]
+          (if (and (pos? idx)
+                   (re-find prev-re (nth lines (dec idx)))
+                   (re-find target-re line))
+            (str/replace line target-re replacement)
+            line))
+        lines)))
 
-# --- patch Config.txt (block-scoped anchors) --------------------------------
-echo "Patching $CONFIG ..."
-sed -i "${SED_OPEN},${SED_CLOSE}s|^  version = \"[^\"]*\";$|  version = \"${VERSION}\";|" "$CONFIG"
-sed -i "/^    asset = \"${CPU_ASSET}\";\$/ { n; s|^    hash = \".*\";$|    hash = \"${CPU_SRI}\";|; }" "$CONFIG"
-sed -i "/${ROCM_ASSET}\"\$/ { n; s|^      hash = \".*\";$|      hash = \"${ROCM_SRI}\";|; }" "$CONFIG"
+(defn write-config [text]
+  (let [original (slurp config-file)
+        text (if (and (str/ends-with? original "\n")
+                      (not (str/ends-with? text "\n")))
+               (str text "\n")
+               text)]
+    (spit config-file text)))
 
-# verify the patch landed
-NEW_VERSION=$(sed -n "${SED_OPEN},${SED_CLOSE}s|^  version = \"\([^\"]*\)\";$|\1|p" "$CONFIG" | head -1)
-if [[ "$NEW_VERSION" != "$VERSION" ]] || ! grep -q "\"$CPU_SRI\"" "$CONFIG" || ! grep -q "\"$ROCM_SRI\"" "$CONFIG"; then
-  echo "error: failed to patch $CONFIG; manual edit required" >&2
-  exit 1
-fi
+(def current (pinned-version (str/split-lines (slurp config-file))))
+(when (nil? current)
+  (die (str "could not read the pinned ollama version from " config-file)))
+(println (str "Current pinned version: v" current))
 
-# --- re-tangle ---------------------------------------------------------------
-echo "Re-tangling Config.txt via ./bin/generate-admin ..."
-./bin/generate-admin
+; --- latest release from GitHub API ----------------------------------------
+(println "Fetching latest release from GitHub API...")
+(def release
+  (curl/get (str "https://api.github.com/repos/" repo "/releases/latest")
+            {:throw false :connect-timeout 10 :timeout 60000}))
+(when (not= 200 (:status release))
+  (die (str "GitHub API request failed with status " (:status release))))
+(def tag (get-in (json/parse-string (:body release) true) [:tag_name]))
+(when (nil? tag)
+  (die "could not parse tag_name from GitHub API response"))
+(def version (str/replace tag #"^v" ""))
+(when-not (re-matches #"[0-9]+\.[0-9]+\.[0-9]+" version)
+  (die (str "unexpected release tag '" tag "'; expected vX.Y.Z")))
+(println (str "Latest release: " tag))
 
-echo "✓ ollama pinned to v${VERSION}"
-echo "Review the diff, then apply with: ent update-system (or 'sudo nixos-rebuild switch --flake .#<host>')"
-echo "Commit Config.txt, modules/nixos/ollama.nix, and this script together."
+; --- idempotence ------------------------------------------------------------
+(when (= version current)
+  (println (str "✓ ollama already up to date at v" version))
+  (System/exit 0))
+
+; --- asset hashes (API digest, download fallback) ---------------------------
+(defn asset-digest [asset]
+  (->> (:assets (json/parse-string (:body release) true))
+       (filter #(= (:name %) asset))
+       first
+       :digest))
+
+(defn compute-hash [asset]
+  (let [hex (-> (asset-digest asset) (or "") (str/replace #"^sha256:" ""))]
+    (if (re-matches #"[0-9a-f]{64}" hex)
+      hex
+      (do
+        (binding [*out* *err*]
+          (println (str "Asset digest missing for " asset "; downloading to compute hash...")))
+        (-> (p/sh {:dir repo-root}
+                  "bash" "-c"
+                  (str "curl -fsSL --connect-timeout 10 --max-time 1800 "
+                       "\"https://github.com/" repo "/releases/download/" tag "/" asset "\" "
+                       "| sha256sum"))
+            :out
+            str/trim
+            (str/split #"\s+")
+            first)))))
+
+(def cpu-hex (compute-hash cpu-asset))
+(def rocm-hex (compute-hash rocm-asset))
+(def cpu-sri (sh-out "nix" "hash" "convert" "--to" "sri" (str "sha256:" cpu-hex)))
+(def rocm-sri (sh-out "nix" "hash" "convert" "--to" "sri" (str "sha256:" rocm-hex)))
+(println (str "CPU hash:   " cpu-sri))
+(println (str "ROCm hash:  " rocm-sri))
+
+; --- patch Config.txt (block-scoped anchors) --------------------------------
+(println (str "Patching " config-file " ..."))
+(def patched
+  (let [ls (str/split-lines (slurp config-file))
+        [i j] (block-range ls)
+        ls (if (some? i)
+             (-> (subvec (vec ls) 0 (inc i))
+                 (into (mapv (fn [line]
+                               (if (re-find #"^  version = \"[^\"]*\";$" line)
+                                 (str/replace line #"^  version = \"[^\"]*\";$"
+                                              (str "  version = \"" version "\";"))
+                                 line))
+                             (subvec (vec ls) (inc i) j)))
+                 (into (subvec (vec ls) j)))
+             ls)
+        ls (patch-line-after ls
+                             #"^    asset = \"ollama-linux-amd64\.tar\.zst\";$"
+                             #"^    hash = \"[^\"]*\";$"
+                             (str "    hash = \"" cpu-sri "\";"))
+        ls (patch-line-after ls
+                             #"ollama-linux-amd64-rocm\.tar\.zst\"\s*;$"
+                             #"^      hash = \"[^\"]*\";$"
+                             (str "      hash = \"" rocm-sri "\";"))]
+    (str/join "\n" ls)))
+(write-config patched)
+
+; verify the patch landed
+(def new-version (pinned-version (str/split-lines patched)))
+(when-not (and (= new-version version)
+               (str/includes? patched (str "\"" cpu-sri "\""))
+               (str/includes? patched (str "\"" rocm-sri "\"")))
+  (die (str "failed to patch " config-file "; manual edit required")))
+
+; --- re-tangle ---------------------------------------------------------------
+(println "Re-tangling Config.txt via ./bin/generate-admin ...")
+(sh-out "bash" "./bin/generate-admin" {:dir repo-root})
+
+(println (str "✓ ollama pinned to v" version))
+(println "Review the diff, then apply with: ent update-system (or 'sudo nixos-rebuild switch --flake .#<host>')")
+(println "Commit Config.txt, modules/nixos/ollama.nix, and this script together.")

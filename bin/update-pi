@@ -1,133 +1,246 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/usr/bin/env bb
+; update-pi
+; Pins both pi agent packages (pi-coding-agent and pi-acp) to the latest
+; GitHub releases. Edits the pi module block in Config.txt (the Org source of
+; truth), then re-tangles via ./bin/generate-admin so modules/home/pi.nix
+; stays in sync. Stops after updating files: no home-manager switch, no
+; nixos-rebuild, no git.
+;
+; npmDepsHash (a hash of the npm dependency tree) cannot be derived from the
+; source tarball, so the script temporarily sets lib.fakeHash, builds the
+; package, parses the real hash from the `got:` error line, and writes it back.
+;
+; pi-coding-agent is capped at v0.80.3: upstream v0.84.1+ generates
+; packages/ai/src/providers/data/*.json from live APIs at build time
+; (npm run generate-models), which breaks the hermetic Nix build. Until the
+; module recipe is updated to handle that, the script skips any newer release.
 
-# update-pi
-# Pins both pi agent packages (pi-coding-agent and pi-acp) to the latest
-# GitHub releases. Edits the pi module block in Config.txt (the Org source of
-# truth), then re-tangles via ./bin/generate-admin so modules/home/pi.nix
-# stays in sync. Stops after updating files: no home-manager switch, no
-# nixos-rebuild, no git.
-#
-# npmDepsHash (a hash of the npm dependency tree) cannot be derived from the
-# source tarball, so the script temporarily sets lib.fakeHash, builds the
-# package, parses the real hash from the `got:` error line, and writes it back.
-#
-# pi-coding-agent is capped at v0.80.3: upstream v0.84.1+ generates
-# packages/ai/src/providers/data/*.json from live APIs at build time
-# (npm run generate-models), which breaks the hermetic Nix build. Until the
-# module recipe is updated to handle that, the script skips any newer release.
+(require '[babashka.curl :as curl]
+         '[babashka.process :as p]
+         '[cheshire.core :as json]
+         '[clojure.string :as str])
 
-cd "$(dirname "$(dirname "$(readlink -f "$0")")")"
+(def config-file "Config.txt")
+(def block-open #"^#\+begin_src nix :tangle modules/home/pi\.nix$")
+(def block-close #"^#\+end_src$")
 
-CONFIG="Config.txt"
-HOST="$(hostname)"
+(def repo-root
+  (-> (System/getProperty "babashka.file")
+      java.io.File.
+      .getCanonicalFile
+      .getParentFile
+      .getParentFile
+      .getPath))
 
-# pname | owner/repo | owner | repo | max buildable version (empty = no cap)
-pkgs=(
-  "pi-acp|svkozak/pi-acp|svkozak|pi-acp|"
-  "pi-coding-agent|earendil-works/pi|earendil-works|pi|0.80.3"
-)
+(def host (str/trim (:out (p/sh "hostname"))))
 
-latest_tag () { # $1 = owner/repo
-  curl -fsSL --connect-timeout 10 --max-time 60 "https://api.github.com/repos/$1/releases/latest" \
-    | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
-}
+; pname | owner/repo | owner | repo | max buildable version ("" = no cap)
+(def pkgs
+  [{:pname "pi-acp" :gh "svkozak/pi-acp" :owner "svkozak" :repo "pi-acp" :maxbuildable ""}
+   {:pname "pi-coding-agent" :gh "earendil-works/pi" :owner "earendil-works" :repo "pi" :maxbuildable "0.80.3"}])
 
-pinned_version () { # $1 = pname
-  sed -n '/^    pname = "'"$1"'";$/{n;s|^    version = "\([^"]*\)";$|\1|p;}' "$CONFIG"
-}
+(defn die [msg]
+  (binding [*out* *err*]
+    (println (str "error: " msg)))
+  (System/exit 1))
 
-declare -A TAG VERSION CURRENT SRI
+(defn sh-out [& args]
+  (let [opts (if (map? (last args)) (last args) {})
+        args (if (map? (last args)) (butlast args) args)
+        {:keys [out err exit]} (apply p/sh opts args)]
+    (when (not= 0 exit)
+      (binding [*out* *err*]
+        (println (str "error: command failed: " (str/join " " args)))
+        (when (seq err) (println err)))
+      (System/exit 1))
+    (str/trim out)))
 
-for spec in "${pkgs[@]}"; do
-  IFS='|' read -r pname gh owner repo maxbuildable <<< "$spec"
-  tag=$(latest_tag "$gh")
-  version=${tag#v}
-  if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "error: unexpected release tag '$tag' for $gh; expected vX.Y.Z" >&2
-    exit 1
-  fi
-  TAG[$pname]=$tag
-  VERSION[$pname]=$version
-  CURRENT[$pname]=$(pinned_version "$pname")
-  if [[ -n "$maxbuildable" && "$(printf '%s\n%s\n' "$maxbuildable" "$version" | sort -V | tail -1)" == "$version" && "$version" != "$maxbuildable" ]]; then
-    echo "⚠  $pname: latest $tag exceeds the max buildable version v${maxbuildable} (upstream generates provider data from live APIs at build time, breaking the hermetic Nix build). Keeping v${CURRENT[$pname]}; update the module recipe to lift this cap."
-    VERSION[$pname]=${CURRENT[$pname]}
-    continue
-  fi
-  echo "$pname: current v${CURRENT[$pname]}, latest $tag"
-done
+(defn block-range [lines]
+  (let [i (first (keep-indexed (fn [idx l] (when (re-find block-open l) idx)) lines))
+        j (first (keep-indexed (fn [idx l]
+                                 (when (and (some? i) (> idx i))
+                                   (when (re-find block-close l) idx)))
+                               lines))]
+    (when (and (some? i) (some? j)) [i j])))
 
-# idempotence: both already at latest -> nothing to do
-any_change=0
-for pname in "${!VERSION[@]}"; do
-  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] || any_change=1
-done
-if (( any_change == 0 )); then
-  echo "✓ pi already up to date (pi-acp ${CURRENT[pi-acp]}, pi-coding-agent ${CURRENT[pi-coding-agent]})"
-  exit 0
-fi
+(defn pinned-version [lines pname]
+  (let [pname-re (re-pattern (str "^    pname = \"" pname "\";$"))]
+    (some (fn [[a b]]
+            (when (re-find pname-re a)
+              (second (re-find #"^    version = \"([^\"]*)\";$" b))))
+          (partition 2 1 lines))))
 
-# --- source tarball hashes -------------------------------------------------
-for spec in "${pkgs[@]}"; do
-  IFS='|' read -r pname gh owner repo <<< "$spec"
-  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
-  echo "Prefetching source tarball for $pname ..."
-  raw=$(nix-prefetch-url --unpack "https://github.com/${owner}/${repo}/archive/refs/tags/${TAG[$pname]}.tar.gz" 2>&1 | tail -1)
-  SRI[$pname]=$(nix hash convert --to sri "sha256:$raw")
-  echo "  src hash: ${SRI[$pname]}"
-done
+(defn version-parts [s]
+  (mapv #(Long/parseLong %) (re-seq #"\d+" s)))
 
-# --- patch Config.txt: version + src hash ----------------------------------
-echo "Patching $CONFIG ..."
-for spec in "${pkgs[@]}"; do
-  IFS='|' read -r pname gh owner repo <<< "$spec"
-  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
-  sed -i '/^    pname = "'"$pname"'";$/{n;s|^    version = "[^"]*";$|    version = "'"${VERSION[$pname]}"'";|;}' "$CONFIG"
-  sed -i "/^      owner = \"${owner}\";\$/,/^      hash = \"[^\"]*\";\$/s|^      hash = \"[^\"]*\";\$|      hash = \"${SRI[$pname]}\";|" "$CONFIG"
-done
+(defn version->? [a b]
+  (pos? (compare (version-parts a) (version-parts b))))
 
-./bin/generate-admin
+(defn latest-tag [gh]
+  (let [res (curl/get (str "https://api.github.com/repos/" gh "/releases/latest")
+                      {:throw false :connect-timeout 10 :timeout 60000})]
+    (when (= 200 (:status res))
+      (get-in (json/parse-string (:body res) true) [:tag_name]))))
 
-# --- npmDepsHash discovery (fake-hash build) ------------------------------
-for spec in "${pkgs[@]}"; do
-  IFS='|' read -r pname gh owner repo <<< "$spec"
-  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
-  echo "Discovering npmDepsHash for $pname (${TAG[$pname]}) ..."
-  sri_esc=${SRI[$pname]//\//\\/}
-  sed -i "/^      hash = \"${sri_esc}\";\$/ { n; n; s|^    npmDepsHash = .*;\$|    npmDepsHash = lib.fakeHash;|; }" "$CONFIG"
-  ./bin/generate-admin > /dev/null 2>&1
-  expr="let c = (builtins.getFlake \"$PWD\").homeConfigurations.\"dan@${HOST}\".config; in builtins.filter (p: (p.pname or \"\") == \"$pname\") c.home.packages"
-  echo "  building with lib.fakeHash to discover the real hash ..."
-  out=$(nix build --impure --no-link --expr "$expr" 2>&1 || true)
-  got=$(echo "$out" | sed -n 's/.*got:[[:space:]]*\(sha256-[A-Za-z0-9+/=]\+\).*/\1/p' | head -1)
-  if [[ -z "$got" ]]; then
-    echo "error: could not parse npmDepsHash from build output for $pname" >&2
-    echo "$out" | tail -20 >&2
-    echo "Set npmDepsHash manually in $CONFIG under $pname." >&2
-    exit 1
-  fi
-  echo "  npmDepsHash: $got"
-  sed -i "/^      hash = \"${sri_esc}\";\$/ { n; n; s|^    npmDepsHash = .*;\$|    npmDepsHash = \"${got}\";|; }" "$CONFIG"
-done
+(defn prefetch-hash [owner repo tag]
+  (let [url (str "https://github.com/" owner "/" repo "/archive/refs/tags/" tag ".tar.gz")
+        {:keys [out err exit]} (p/sh {:dir repo-root} "nix-prefetch-url" "--unpack" url)]
+    (when (not= 0 exit)
+      (die (str "nix-prefetch-url failed for " url)))
+    (let [raw (->> (str out "\n" err)
+                   str/split-lines
+                   (remove str/blank?)
+                   (filter #(re-matches #"[a-z0-9]{52}" %))
+                   last)]
+      (sh-out "nix" "hash" "convert" "--to" "sri" (str "sha256:" raw)))))
 
-# --- final tangle + verify ---------------------------------------------------
-./bin/generate-admin
+(defn patch-version [lines pname version]
+  (let [pname-re (re-pattern (str "^    pname = \"" pname "\";$"))]
+    (vec (map-indexed
+          (fn [idx line]
+            (if (and (pos? idx)
+                     (re-find pname-re (nth lines (dec idx)))
+                     (re-find #"^    version = \"[^\"]*\";$" line))
+              (str/replace line #"^    version = \"[^\"]*\";$"
+                           (str "    version = \"" version "\";"))
+              line))
+          lines))))
 
-for spec in "${pkgs[@]}"; do
-  IFS='|' read -r pname gh owner repo <<< "$spec"
-  [[ "${CURRENT[$pname]}" == "${VERSION[$pname]}" ]] && continue
-  newver=$(pinned_version "$pname")
-  if [[ "$newver" != "${VERSION[$pname]}" ]] || ! grep -q "\"${SRI[$pname]}\"" "$CONFIG"; then
-    echo "error: failed to patch $CONFIG for $pname; manual edit required" >&2
-    exit 1
-  fi
-done
-if grep -q 'npmDepsHash = lib.fakeHash;' "$CONFIG"; then
-  echo "error: a lib.fakeHash npmDepsHash was left behind in $CONFIG; manual edit required" >&2
-  exit 1
-fi
+(defn patch-src-hash [lines owner sri]
+  (let [owner-re (re-pattern (str "^      owner = \"" owner "\";$"))]
+    (loop [acc [] seen? false [line & more] lines]
+      (cond
+        (nil? line) (vec acc)
+        (and seen? (re-find #"^      hash = \"[^\"]*\";$" line))
+        (recur (conj acc (str/replace line #"^      hash = \"[^\"]*\";$"
+                                      (str "      hash = \"" sri "\";")))
+               false more)
+        (re-find owner-re line)
+        (recur (conj acc line) true more)
+        :else (recur (conj acc line) seen? more)))))
 
-echo "✓ pi pinned to pi-acp ${VERSION[pi-acp]}, pi-coding-agent ${VERSION[pi-coding-agent]}"
-echo "Review the diff, then apply with: ent update-home (or 'home-manager switch --flake .#dan@$(hostname)')"
-echo "Commit Config.txt, modules/home/pi.nix, and this script together."
+(defn patch-npmdeps [lines sri replacement]
+  (let [sri-re (re-pattern (str "^      hash = \"" sri "\";$"))]
+    (vec (map-indexed
+          (fn [idx line]
+            (if (and (>= idx 2)
+                     (re-find sri-re (nth lines (- idx 2)))
+                     (re-find #"^    npmDepsHash = .*;$" line))
+              (str/replace line #"^    npmDepsHash = .*;$"
+                           (str "    npmDepsHash = " replacement ";"))
+              line))
+          lines))))
+
+(defn tangle []
+  (sh-out "bash" "./bin/generate-admin" {:dir repo-root}))
+
+(defn read-config []
+  (str/split-lines (slurp config-file)))
+
+(defn write-config [lines]
+  (let [text (str/join "\n" lines)
+        original (slurp config-file)
+        text (if (and (str/ends-with? original "\n")
+                      (not (str/ends-with? text "\n")))
+               (str text "\n")
+               text)]
+    (spit config-file text)))
+
+; --- resolve latest releases and caps ---------------------------------------
+(def infos
+  (mapv
+   (fn [{:keys [pname gh maxbuildable] :as spec}]
+     (let [tag (latest-tag gh)
+           _ (when (nil? tag) (die (str "could not resolve latest release for " gh)))
+           version (str/replace tag #"^v" "")
+           _ (when-not (re-matches #"[0-9]+\.[0-9]+\.[0-9]+" version)
+               (die (str "unexpected release tag '" tag "' for " gh "; expected vX.Y.Z")))
+           current (pinned-version (read-config) pname)
+           capped? (and (seq maxbuildable) (version->? version maxbuildable))
+           final-version (if capped? current version)]
+       (when capped?
+         (println (str "⚠  " pname ": latest " tag " exceeds the max buildable version v" maxbuildable
+                       " (upstream generates provider data from live APIs at build time, breaking the hermetic Nix build). Keeping v" current "; update the module recipe to lift this cap.")))
+       (when-not capped?
+         (println (str pname ": current v" current ", latest " tag)))
+       (assoc spec :tag tag :version version :current current :capped? capped?
+              :final-version final-version)))
+   pkgs))
+
+; --- idempotence: all already at latest -> nothing to do --------------------
+(when (every? (fn [{:keys [current final-version]}] (= current final-version)) infos)
+  (let [pi-acp (first infos)
+        agent (second infos)]
+    (println (str "✓ pi already up to date (pi-acp " (:final-version pi-acp)
+                  ", pi-coding-agent " (:final-version agent) ")")))
+  (System/exit 0))
+
+; --- source tarball hashes ---------------------------------------------------
+(def src-hashes
+  (into {}
+        (map (fn [{:keys [pname owner repo tag current final-version]}]
+               (if (= current final-version)
+                 [pname nil]
+                 (do
+                   (println (str "Prefetching source tarball for " pname " ..."))
+                   (let [sri (prefetch-hash owner repo tag)]
+                     (println (str "  src hash: " sri))
+                     [pname sri]))))
+             infos)))
+
+; --- patch Config.txt: version + src hash ------------------------------------
+(println (str "Patching " config-file " ..."))
+(write-config
+ (reduce (fn [lines {:keys [pname owner current final-version]}]
+           (if (= current final-version)
+             lines
+             (-> lines
+                 (patch-version pname final-version)
+                 (patch-src-hash owner (src-hashes pname)))))
+         (read-config)
+         infos))
+
+(tangle)
+
+; --- npmDepsHash discovery (fake-hash build) --------------------------------
+(doseq [{:keys [pname tag current final-version]} infos]
+  (when-not (= current final-version)
+    (println (str "Discovering npmDepsHash for " pname " (" tag ") ..."))
+    (let [sri (src-hashes pname)]
+      (write-config (patch-npmdeps (read-config) sri "lib.fakeHash"))
+      (tangle)
+      (let [expr (str "let c = (builtins.getFlake \"" repo-root
+                      "\").homeConfigurations.\"dan@" host
+                      "\".config; in builtins.filter (p: (p.pname or \"\") == \"" pname
+                      "\") c.home.packages")
+            out (p/sh {:dir repo-root} "nix" "build" "--impure" "--no-link" "--expr" expr)
+            combined (str (:out out) "\n" (:err out))
+            got (second (re-find #"got:\s*(sha256-[A-Za-z0-9+/=]+)" combined))]
+        (when (nil? got)
+          (binding [*out* *err*]
+            (println (str "error: could not parse npmDepsHash from build output for " pname))
+            (println (str/join "\n" (take-last 20 (str/split-lines combined))))
+            (println (str "Set npmDepsHash manually in " config-file " under " pname ".")))
+          (System/exit 1))
+        (println (str "  npmDepsHash: " got))
+        (write-config (patch-npmdeps (read-config) sri (str "\"" got "\"")))))))
+
+; --- final tangle + verify ----------------------------------------------------
+(tangle)
+
+(doseq [{:keys [pname current final-version]} infos]
+  (when-not (= current final-version)
+    (let [newver (pinned-version (read-config) pname)
+          sri (src-hashes pname)]
+      (when (or (not= newver final-version)
+                (not (str/includes? (slurp config-file) (str "\"" sri "\""))))
+        (die (str "failed to patch " config-file " for " pname "; manual edit required"))))))
+(when (str/includes? (slurp config-file) "npmDepsHash = lib.fakeHash;")
+  (die (str "a lib.fakeHash npmDepsHash was left behind in " config-file "; manual edit required")))
+
+(let [pi-acp (first infos)
+      agent (second infos)]
+  (println (str "✓ pi pinned to pi-acp " (:final-version pi-acp)
+                ", pi-coding-agent " (:final-version agent))))
+(println (str "Review the diff, then apply with: ent update-home (or 'home-manager switch --flake .#dan@" host "')"))
+(println "Commit Config.txt, modules/home/pi.nix, and this script together.")
