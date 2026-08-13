@@ -10,10 +10,13 @@
 ; source tarball, so the script temporarily sets lib.fakeHash, builds the
 ; package, parses the real hash from the `got:` error line, and writes it back.
 ;
-; pi-coding-agent is capped at v0.80.3: upstream v0.84.1+ generates
+; pi-coding-agent model data: upstream v0.84.1+ generates
 ; packages/ai/src/providers/data/*.json from live APIs at build time
-; (npm run generate-models), which breaks the hermetic Nix build. Until the
-; module recipe is updated to handle that, the script skips any newer release.
+; (npm run generate-models), which breaks the hermetic Nix build. The module
+; recipe vendors a hydrated snapshot into modules/home/pi-model-data/<version>/
+; (copied into the source in postPatch) and builds with upstream's hermetic
+; build:offline path. When the pinned version bumps, this script re-hydrates the
+; snapshot with a bare node (>= 22.6, no npm install, no provider keys).
 
 (require '[babashka.curl :as curl]
          '[babashka.process :as p]
@@ -37,7 +40,7 @@
 ; pname | owner/repo | owner | repo | max buildable version ("" = no cap)
 (def pkgs
   [{:pname "pi-acp" :gh "svkozak/pi-acp" :owner "svkozak" :repo "pi-acp" :maxbuildable ""}
-   {:pname "pi-coding-agent" :gh "earendil-works/pi" :owner "earendil-works" :repo "pi" :maxbuildable "0.80.3"}])
+   {:pname "pi-coding-agent" :gh "earendil-works/pi" :owner "earendil-works" :repo "pi" :maxbuildable ""}])
 
 (defn die [msg]
   (binding [*out* *err*]
@@ -82,17 +85,52 @@
     (when (= 200 (:status res))
       (get-in (json/parse-string (:body res) true) [:tag_name]))))
 
-(defn prefetch-hash [owner repo tag]
+(defn fetch-src [owner repo tag]
   (let [url (str "https://github.com/" owner "/" repo "/archive/refs/tags/" tag ".tar.gz")
         {:keys [out err exit]} (p/sh {:dir repo-root} "nix-prefetch-url" "--unpack" url)]
     (when (not= 0 exit)
       (die (str "nix-prefetch-url failed for " url)))
-    (let [raw (->> (str out "\n" err)
-                   str/split-lines
+    (let [combined (str out "\n" err)
+          raw (->> (str/split-lines combined)
                    (remove str/blank?)
                    (filter #(re-matches #"[a-z0-9]{52}" %))
-                   last)]
-      (sh-out "nix" "hash" "convert" "--to" "sri" (str "sha256:" raw)))))
+                   last)
+          store-path (second (re-find #"path is '([^']+)'" combined))]
+      (when (nil? raw) (die (str "could not parse hash from nix-prefetch-url for " url)))
+      (when (nil? store-path) (die (str "could not parse store path from nix-prefetch-url for " url)))
+      {:sri (sh-out "nix" "hash" "convert" "--to" "sri" (str "sha256:" raw))
+       :store-path store-path})))
+
+(defn node-supports-strip-types? []
+  (let [v (str/replace (sh-out "node" "--version") #"^v" "")
+        [major minor] (mapv #(Long/parseLong %) (take 2 (str/split v #"\.")))]
+    (or (>= major 23)
+        (and (= major 22) (>= minor 6)))))
+
+(defn hydrate-model-data [{:keys [version store-path]}]
+  (let [tmp (str (System/getProperty "java.io.tmpdir") "/pi-hydrate-" version)
+        script "packages/ai/scripts/generate-models.ts"
+        data-dir (str repo-root "/modules/home/pi-model-data")]
+    (sh-out "rm" "-rf" tmp)
+    (sh-out "mkdir" "-p" tmp)
+    (sh-out "cp" "-r" (str store-path "/.") tmp)
+    (let [{:keys [exit err]} (p/sh {:dir tmp} "node" script "--strict" "--data-only")]
+      (when (not= 0 exit)
+        (die (str "model data hydration failed for v" version ": " (or err "")))))
+    (sh-out "rm" "-rf" (str data-dir "/" version))
+    (sh-out "mkdir" "-p" (str data-dir "/" version))
+    (sh-out "cp" "-r" (str tmp "/packages/ai/src/providers/data/.") (str data-dir "/" version))
+    (sh-out "rm" "-rf" tmp)
+    (println (str "  model data vendored to modules/home/pi-model-data/" version "/"))))
+
+(defn prune-model-data-dirs [keep-version]
+  (let [dir (java.io.File. (str repo-root "/modules/home/pi-model-data"))]
+    (when (.isDirectory dir)
+      (doseq [f (.listFiles dir)]
+        (when (and (.isDirectory f)
+                   (not= (.getName f) keep-version))
+          (sh-out "rm" "-rf" (.getPath f))
+          (println (str "  removed stale model data dir: " (.getName f))))))))
 
 (defn patch-version [lines pname version]
   (let [pname-re (re-pattern (str "^    pname = \"" pname "\";$"))]
@@ -121,15 +159,16 @@
 
 (defn patch-npmdeps [lines sri replacement]
   (let [sri-re (re-pattern (str "^      hash = \"" sri "\";$"))]
-    (vec (map-indexed
-          (fn [idx line]
-            (if (and (>= idx 2)
-                     (re-find sri-re (nth lines (- idx 2)))
-                     (re-find #"^    npmDepsHash = .*;$" line))
-              (str/replace line #"^    npmDepsHash = .*;$"
-                           (str "    npmDepsHash = " replacement ";"))
-              line))
-          lines))))
+    (loop [acc [] seen? false [line & more] lines]
+      (cond
+        (nil? line) (vec acc)
+        (and seen? (re-find #"^    npmDepsHash = .*;$" line))
+        (recur (conj acc (str/replace line #"^    npmDepsHash = .*;$"
+                                      (str "    npmDepsHash = " replacement ";")))
+               false more)
+        (re-find sri-re line)
+        (recur (conj acc line) true more)
+        :else (recur (conj acc line) seen? more)))))
 
 (defn tangle []
   (sh-out "bash" "./bin/generate-admin" {:dir repo-root}))
@@ -176,16 +215,16 @@
   (System/exit 0))
 
 ; --- source tarball hashes ---------------------------------------------------
-(def src-hashes
+(def src-info
   (into {}
         (map (fn [{:keys [pname owner repo tag current final-version]}]
                (if (= current final-version)
                  [pname nil]
                  (do
                    (println (str "Prefetching source tarball for " pname " ..."))
-                   (let [sri (prefetch-hash owner repo tag)]
-                     (println (str "  src hash: " sri))
-                     [pname sri]))))
+                   (let [info (fetch-src owner repo tag)]
+                     (println (str "  src hash: " (:sri info)))
+                     [pname info]))))
              infos)))
 
 ; --- patch Config.txt: version + src hash ------------------------------------
@@ -196,17 +235,26 @@
              lines
              (-> lines
                  (patch-version pname final-version)
-                 (patch-src-hash owner (src-hashes pname)))))
+                 (patch-src-hash owner (:sri (src-info pname))))))
          (read-config)
          infos))
 
 (tangle)
 
+; --- hydrate model data for a bumped pi-coding-agent version -----------------
+(doseq [{:keys [pname current final-version]} infos]
+  (when (and (= pname "pi-coding-agent") (not= current final-version))
+    (println (str "Hydrating model data for pi-coding-agent v" final-version " ..."))
+    (when-not (node-supports-strip-types?)
+      (die "model data hydration requires node >= 22.6 (direct .ts execution); update your node."))
+    (hydrate-model-data (assoc (src-info pname) :version final-version))
+    (prune-model-data-dirs final-version)))
+
 ; --- npmDepsHash discovery (fake-hash build) --------------------------------
 (doseq [{:keys [pname tag current final-version]} infos]
   (when-not (= current final-version)
     (println (str "Discovering npmDepsHash for " pname " (" tag ") ..."))
-    (let [sri (src-hashes pname)]
+    (let [sri (:sri (src-info pname))]
       (write-config (patch-npmdeps (read-config) sri "lib.fakeHash"))
       (tangle)
       (let [expr (str "let c = (builtins.getFlake \"" repo-root
@@ -231,7 +279,7 @@
 (doseq [{:keys [pname current final-version]} infos]
   (when-not (= current final-version)
     (let [newver (pinned-version (read-config) pname)
-          sri (src-hashes pname)]
+          sri (:sri (src-info pname))]
       (when (or (not= newver final-version)
                 (not (str/includes? (slurp config-file) (str "\"" sri "\""))))
         (die (str "failed to patch " config-file " for " pname "; manual edit required"))))))
@@ -243,4 +291,4 @@
   (println (str "✓ pi pinned to pi-acp " (:final-version pi-acp)
                 ", pi-coding-agent " (:final-version agent))))
 (println (str "Review the diff, then apply with: ent update-home (or 'home-manager switch --flake .#dan@" host "')"))
-(println "Commit Config.txt, modules/home/pi.nix, and this script together.")
+(println "Commit Config.txt, modules/home/pi.nix, modules/home/pi-model-data/, and this script together.")
