@@ -102,7 +102,7 @@ in {
         # Flash Attention: Reduces memory overhead for the attention mechanism.
         OLLAMA_FLASH_ATTENTION = "1";
         # Context
-        OLLAMA_CONTEXT_LENGTH = "64000";
+        # OLLAMA_CONTEXT_LENGTH = "64000";
       };
     };
 
