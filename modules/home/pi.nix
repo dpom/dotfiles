@@ -99,6 +99,21 @@ let
             "supportsDeveloperRole": true,
             "supportsReasoningEffort": false
           }
+        },
+        "ollama-cloud": {
+          "baseUrl": "https://ollama.com/v1",
+          "api": "openai-completions",
+          "models": [
+            { "id": "gpt-oss:20b", "name": "GPT-OSS 20B", "input": ["text"], "contextWindow": 131072, "maxTokens": 32768 },
+            { "id": "gpt-oss:120b", "name": "GPT-OSS 120B", "input": ["text"], "contextWindow": 131072, "maxTokens": 131072 },
+            { "id": "nemotron-3-nano:30b", "name": "Nemotron 3 Nano 30B", "input": ["text"], "contextWindow": 262144, "maxTokens": 131072 },
+            { "id": "nemotron-3-super", "name": "Nemotron 3 Super", "input": ["text"], "contextWindow": 262144, "maxTokens": 262144 },
+            { "id": "gemma4:31b", "name": "Gemma 4 31B", "input": ["text"], "contextWindow": 262144, "maxTokens": 131072 },
+            { "id": "qwen3.5:397b", "name": "Qwen 3.5 397B", "input": ["text"], "contextWindow": 262144, "maxTokens": 262144 },
+            { "id": "deepseek-v4-flash:0731", "name": "DeepSeek V4 Flash 0731", "input": ["text"], "contextWindow": 1000000, "maxTokens": 384000 },
+            { "id": "deepseek-v4-flash:preview", "name": "DeepSeek V4 Flash Preview", "input": ["text"], "contextWindow": 1000000, "maxTokens": 384000 },
+            { "id": "minimax-m2.7", "name": "MiniMax M2.7", "input": ["text"], "contextWindow": 204800, "maxTokens": 131072 }
+          ]
         }
       }
     }
@@ -144,7 +159,7 @@ let
       fi
 
       echo "Generating $$PI_AGENT_DIR/models.json..."
-      jq --argjson ollama "$OLLAMA_MODELS" --argjson lmstudio "$LMSTUDIO_MODELS" '.providers.ollama.models = $ollama | .providers.lmstudio.models = $lmstudio' "${piConfigTemplate}" > "$PI_AGENT_DIR/models.json"
+      jq --argjson ollama "$OLLAMA_MODELS" --argjson lmstudio "$LMSTUDIO_MODELS" --arg ollamacloudkey "$(cat ${config.sops.secrets.ollama_cloud_api_key.path})" '.providers.ollama.models = $ollama | .providers.lmstudio.models = $lmstudio | .providers["ollama-cloud"].apiKey = $ollamacloudkey' "${piConfigTemplate}" > "$PI_AGENT_DIR/models.json"
       echo "Done! Configuration saved to $PI_AGENT_DIR/models.json."
     '';
   };

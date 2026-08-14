@@ -8,6 +8,7 @@ let
   # 1. Definim șablonul de bază fără modelele hardcodate
   opencodeTemplate = pkgs.writeText "opencode-template.json" ''
     {
+      "model": "ollama-cloud/gpt-oss:20b",
       "provider": {
         "ollama": {
           "npm": "@ai-sdk/openai-compatible",
@@ -24,6 +25,51 @@ let
             "baseURL": "http://localhost:1234/v1"
           },
           "models": {}
+        },
+        "ollama-cloud": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Ollama Cloud",
+          "options": {
+            "baseURL": "https://ollama.com/v1"
+          },
+          "models": {
+            "gpt-oss:20b": {
+              "name": "GPT-OSS 20B",
+              "limit": { "context": 131072, "output": 32768 }
+            },
+            "gpt-oss:120b": {
+              "name": "GPT-OSS 120B",
+              "limit": { "context": 131072, "output": 131072 }
+            },
+            "nemotron-3-nano:30b": {
+              "name": "Nemotron 3 Nano 30B",
+              "limit": { "context": 262144, "output": 131072 }
+            },
+            "nemotron-3-super": {
+              "name": "Nemotron 3 Super",
+              "limit": { "context": 262144, "output": 262144 }
+            },
+            "gemma4:31b": {
+              "name": "Gemma 4 31B",
+              "limit": { "context": 262144, "output": 131072 }
+            },
+            "qwen3.5:397b": {
+              "name": "Qwen 3.5 397B",
+              "limit": { "context": 262144, "output": 262144 }
+            },
+            "deepseek-v4-flash:0731": {
+              "name": "DeepSeek V4 Flash 0731",
+              "limit": { "context": 1000000, "output": 384000 }
+            },
+            "deepseek-v4-flash:preview": {
+              "name": "DeepSeek V4 Flash Preview",
+              "limit": { "context": 1000000, "output": 384000 }
+            },
+            "minimax-m2.7": {
+              "name": "MiniMax M2.7",
+              "limit": { "context": 204800, "output": 131072 }
+            }
+          }
         }
       }
     }
@@ -62,7 +108,7 @@ let
       fi
 
       echo "Generating $CONFIG_FILE..."
-      jq --argjson ollama "$OLLAMA_MODELS" --argjson lmstudio "$LMSTUDIO_MODELS" '.provider.ollama.models = $ollama | .provider.lmstudio.models = $lmstudio' "${opencodeTemplate}" > "$CONFIG_FILE"
+      jq --argjson ollama "$OLLAMA_MODELS" --argjson lmstudio "$LMSTUDIO_MODELS" --arg ollamacloudkey "$(cat ${config.sops.secrets.ollama_cloud_api_key.path})" '.provider.ollama.models = $ollama | .provider.lmstudio.models = $lmstudio | .provider["ollama-cloud"].options.apiKey = $ollamacloudkey' "${opencodeTemplate}" > "$CONFIG_FILE"
 
       echo "Done! Configuration saved to $CONFIG_FILE."
     '';

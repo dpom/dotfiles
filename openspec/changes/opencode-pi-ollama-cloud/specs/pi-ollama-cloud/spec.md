@@ -1,8 +1,8 @@
 ## ADDED Requirements
 
 ### Requirement: ollama-cloud provider entry in PI config template
+The PI agent config template SHALL include an `ollama-cloud` provider alongside the existing `ollama` and `lmstudio` providers, pointing at Ollama Cloud's OpenAI-compatible endpoint.
 Feature: pi-ollama-cloud
-Rule: The PI agent config template SHALL include an `ollama-cloud` provider alongside the existing `ollama` and `lmstudio` providers, pointing at Ollama Cloud's OpenAI-compatible endpoint.
 
 #### Scenario: Template includes ollama-cloud provider
 - **GIVEN** the PI config template

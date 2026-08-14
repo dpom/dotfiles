@@ -1,8 +1,8 @@
 ## ADDED Requirements
 
 ### Requirement: ollama-cloud provider entry in OpenCode template
+The OpenCode V1 config template SHALL include an `ollama-cloud` provider alongside the existing `ollama` and `lmstudio` providers, pointing at Ollama Cloud's OpenAI-compatible endpoint.
 Feature: opencode-ollama-cloud
-Rule: The OpenCode V1 config template SHALL include an `ollama-cloud` provider alongside the existing `ollama` and `lmstudio` providers, pointing at Ollama Cloud's OpenAI-compatible endpoint.
 
 #### Scenario: Template includes ollama-cloud provider
 - **GIVEN** the OpenCode template JSON

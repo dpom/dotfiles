@@ -23,6 +23,7 @@
     "email" = {};
     "nix_access_token" = {};
     "private_dir" = {};
+    "ollama_cloud_api_key" = {};
   };
   
   imports = [
