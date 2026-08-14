@@ -3712,10 +3712,18 @@ With a prefix (C-u), replace the selected region."
 **** agent-shell
 
 #+begin_src emacs-lisp
+
+
+
+(use-package shell-maker
+  :ensure t
+  :demand t
+  :vc (:url "https://github.com/xenodium/shell-maker" :rev :newest))
+
 (use-package agent-shell
   :ensure t
   :demand t
-  :vc (:url "https://github.com/xenodium/agent-shell")
+  :vc (:url "https://github.com/xenodium/agent-shell" :rev :newest)
   :config
   (setq agent-shell-google-authentication
       (agent-shell-google-make-authentication :login t))
@@ -4153,6 +4161,7 @@ Set up the =compile= package and ensure that compilation output automatically sc
     :demand t
     :hook (lsp-mode . lsp-enable-which-key-integration)
     :config
+    (setq lsp-eldoc-render-all t)
     ;; (add-hook 'prog-mode-hook
     ;;         (lambda ()
     ;;           (unless (derived-mode-p 'emacs-lisp-mode)
