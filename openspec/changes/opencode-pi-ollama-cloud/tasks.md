@@ -26,5 +26,5 @@
 
 ## 4. Validation and commit
 
-- [ ] 4.1 Run `openspec validate opencode-pi-ollama-cloud --type change --strict`
-- [ ] 4.2 Commit `Config.txt`, tangled `.nix` files, `secrets/secrets.yaml`, and the `openspec/changes/opencode-pi-ollama-cloud/` artifacts together
+- [x] 4.1 Run `openspec validate opencode-pi-ollama-cloud --type change --strict`
+- [x] 4.2 Commit `Config.txt`, tangled `.nix` files, `secrets/secrets.yaml`, and the `openspec/changes/opencode-pi-ollama-cloud/` artifacts together
