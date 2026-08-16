@@ -58,6 +58,16 @@ The script SHALL compute hashes that match how the pi packages are fetched, so t
 - **THEN** it SHALL derive the hash from a real nix fetch of the package's npm dependency tree
 - **AND** the resulting package SHALL build with the updated `npmDepsHash`
 
+### Requirement: Bumped pi-coding-agent pin is buildable
+When `bin/update-pi` raises the `pi-coding-agent` pin to a newer `earendil-works/pi` release, the regenerated module SHALL build hermetically without manual recipe edits, including compiling the `telemetry` workspace before `ai`.
+
+#### Scenario: Updated pin builds with ent update-home
+- **GIVEN** a newer `earendil-works/pi` release exists than the currently pinned version
+- **WHEN** `bin/update-pi` resolves it, updates the pins in `Config.txt`, hydrates the model data, discovers `npmDepsHash`, and re-tangles
+- **THEN** `modules/home/pi.nix` SHALL pin the resolved version with matching source hash and `npmDepsHash`
+- **THEN** `modules/home/pi-model-data/<version>/` SHALL contain the hydrated snapshot for the resolved version
+- **THEN** `ent update-home` SHALL build the `pi-coding-agent` package successfully without manual hash or recipe edits
+
 ### Requirement: No activation or commit from update script
 The `bin/update-pi` script SHALL stop after updating files and SHALL NOT deploy or version-control the change.
 
