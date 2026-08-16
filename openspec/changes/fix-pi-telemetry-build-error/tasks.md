@@ -19,4 +19,4 @@
 ## 4. Close out the change
 
 - [x] 4.1 Run `openspec validate fix-pi-telemetry-build-error --type change --strict` and fix any validation errors.
-- [ ] 4.2 Commit the `Config.txt` source, regenerated `modules/home/pi.nix`, `modules/home/pi-model-data/0.84.2/`, and any `bin/update-pi` changes together.
+- [x] 4.2 Commit the `Config.txt` source, regenerated `modules/home/pi.nix`, `modules/home/pi-model-data/0.84.2/`, and any `bin/update-pi` changes together.
