@@ -2655,28 +2655,31 @@ let
 
   pi-coding-agent = pkgs.buildNpmPackage rec {
     pname = "pi-coding-agent";
-    version = "0.84.1";
+    version = "0.84.2";
     src = pkgs.fetchFromGitHub {
       owner = "earendil-works";
       repo = "pi";
       rev = "v${version}";
-      hash = "sha256-lg+I4S/aAjazjhGZU567ow+rksoNiqOqjHl//TjAMes=";
+      hash = "sha256-d29ft9otYxdHRWYIAX8KMHPpppToX9ME5LbPb1rPcYo=";
     };
     modelData = ./pi-model-data/${version};
     postPatch = ''
       cp -r ${modelData}/. packages/ai/src/providers/data/
     '';
-    npmDepsHash = "sha256-tufyZQRPAUeDtiq0UQodbKA/Y9xUAvNT8K+NWFjkeME=";
+    npmDepsHash = "sha256-6J5Efe+6ptCuR3VZojwYPZO8BBnnZsOQ4OAeB64uYOY=";
     npmRebuildFlags = [ "--ignore-scripts" ];
     npmBuildScript = "build";
     npmWorkspace = "packages/coding-agent";
     buildPhase = ''
       runHook preBuild
       node packages/ai/scripts/check-model-data.ts
+      npx tsgo -p packages/telemetry/tsconfig.build.json
       npx tsgo -p packages/ai/tsconfig.build.json
       cp -r packages/ai/src/providers/data packages/ai/dist/providers/data
       npx tsgo -p packages/tui/tsconfig.build.json
       npx tsgo -p packages/agent/tsconfig.build.json
+      npx tsgo -p packages/protocol/tsconfig.build.json
+      npx tsgo -p packages/client/tsconfig.build.json
       npm run build --workspace=packages/coding-agent
       runHook postBuild
     '';
@@ -2695,9 +2698,12 @@ let
     versionCheckProgramArg = "--version";
     postInstall = ''
       local nm="$out/lib/node_modules/pi-monorepo/node_modules"
-      for ws in @earendil-works/pi-ai:packages/ai \
+      for ws in @earendil-works/pi-telemetry:packages/telemetry \
+                @earendil-works/pi-protocol:packages/protocol \
+                @earendil-works/pi-ai:packages/ai \
                 @earendil-works/pi-agent-core:packages/agent \
-                @earendil-works/pi-tui:packages/tui; do
+                @earendil-works/pi-tui:packages/tui \
+                @earendil-works/pi-client:packages/client; do
         IFS=: read -r pkg src <<< "$ws"
         rm "$nm/$pkg"
         cp -r "$src" "$nm/$pkg"

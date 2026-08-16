@@ -39,8 +39,8 @@ The module SHALL build both packages from source using `pkgs.buildNpmPackage` at
 ## ADDED Requirements
 
 ### Requirement: Hermetic build compiles the telemetry workspace
+The `pi-coding-agent` build SHALL compile the `@earendil-works/pi-telemetry` workspace (`packages/telemetry`) before compiling `@earendil-works/pi-ai`, so that `packages/ai` resolves the `@earendil-works/pi-telemetry` type declarations during the hermetic Nix build.
 Feature: pi-coding-agent
-Rule: The `pi-coding-agent` build SHALL compile the `@earendil-works/pi-telemetry` workspace (`packages/telemetry`) before compiling `@earendil-works/pi-ai`, so that `packages/ai` resolves the `@earendil-works/pi-telemetry` type declarations during the hermetic Nix build.
 
 #### Scenario: Build succeeds with telemetry compiled first
 - **GIVEN** the `pi-coding-agent` package is being built from the v0.84.2 source

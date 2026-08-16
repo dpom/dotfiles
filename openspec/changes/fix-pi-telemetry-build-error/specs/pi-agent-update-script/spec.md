@@ -3,8 +3,8 @@
 ## ADDED Requirements
 
 ### Requirement: Bumped pi-coding-agent pin is buildable
+When `bin/update-pi` raises the `pi-coding-agent` pin to a newer `earendil-works/pi` release, the regenerated module SHALL build hermetically without manual recipe edits, including compiling the `telemetry` workspace before `ai`.
 Feature: pi-agent-update-script
-Rule: When `bin/update-pi` raises the `pi-coding-agent` pin to a newer `earendil-works/pi` release, the regenerated module SHALL build hermetically without manual recipe edits, including compiling the `telemetry` workspace before `ai`.
 
 #### Scenario: Updated pin builds with ent update-home
 - **GIVEN** a newer `earendil-works/pi` release exists than the currently pinned version

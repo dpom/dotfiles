@@ -114,6 +114,7 @@
     (sh-out "rm" "-rf" tmp)
     (sh-out "mkdir" "-p" tmp)
     (sh-out "cp" "-r" (str store-path "/.") tmp)
+    (sh-out "chmod" "-R" "u+w" tmp)
     (let [{:keys [exit err]} (p/sh {:dir tmp} "node" script "--strict" "--data-only")]
       (when (not= 0 exit)
         (die (str "model data hydration failed for v" version ": " (or err ""))))
