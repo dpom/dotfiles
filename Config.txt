@@ -1972,8 +1972,10 @@ home.packages = with pkgs; [
   mission-center
   networkmanager-openvpn
   networkmanagerapplet
+  nix-index
   openvpn
   pasystray
+  ripgrep
   sshpass
 ];
 #+end_src

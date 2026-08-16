@@ -3712,9 +3712,6 @@ With a prefix (C-u), replace the selected region."
 **** agent-shell
 
 #+begin_src emacs-lisp
-
-
-
 (use-package shell-maker
   :ensure t
   :demand t

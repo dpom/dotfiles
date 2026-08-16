@@ -196,8 +196,10 @@
     mission-center
     networkmanager-openvpn
     networkmanagerapplet
+    nix-index
     openvpn
     pasystray
+    ripgrep
     sshpass
   ];
   # Nicely reload system units when changing configs
