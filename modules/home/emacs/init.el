@@ -2885,37 +2885,34 @@ With a prefix (C-u), replace the selected region."
 (add-hook 'prog-mode-hook 'run-non-ts-hooks)
 (setq treesit-font-lock-level 4)
 
-(use-package hideshow
-  :ensure nil
-  :functions
-  (hs-fold-overlay-ellipsis)
-  :hook
-  (prog-mode . hs-minor-mode)
-  :init
-  (setq hs-hide-comments-when-hiding-all nil)
-  (setq hs-allow-nesting t)
-  (setq hs-set-up-overlay #'hs-fold-overlay-ellipsis)
-  :config
-  (defun hs-fold-overlay-ellipsis (ov)
-    (when (eq 'code (overlay-get ov 'hs))
-      (overlay-put
-       ov 'display (propertize " … " 'face 'font-lock-comment-face))))
-  (defun local/toggle-fold ()
-    (interactive)
-    (save-excursion
-      (end-of-line)
-      (hs-toggle-hiding)))
-  (defun local/hide-level ()
-    (interactive)
-    (hs-hide-level 1)))
-
-(use-package fold-dwim
+(global-set-key (kbd "<f8>")  nil)
+(use-package kirigami
   :ensure t
-  :demand t
-  :config
-  (global-set-key (kbd "<f8>")      'fold-dwim-toggle)
-  (global-set-key (kbd "<M-f8>")    'fold-dwim-hide-all)
-  (global-set-key (kbd "<S-M-f8>")  'fold-dwim-show-all))
+  :commands (kirigami-open-fold
+             kirigami-open-fold-rec
+             kirigami-close-fold
+             kirigami-toggle-fold
+             kirigami-open-folds
+             kirigami-close-folds-except-current
+             kirigami-close-folds)
+
+  :bind
+  (("<f8> o" . kirigami-open-fold)      ; Open fold at point
+   ("<f8> O" . kirigami-open-fold-rec)  ; Open fold recursively
+   ("<f8> r" . kirigami-open-folds)     ; Open all folds
+   ("<f8> c" . kirigami-close-fold)     ; Close fold at point
+   ("<f8> m" . kirigami-close-folds)    ; Close all folds
+   ("<f8> a" . kirigami-toggle-fold))   ; Toggle fold at point
+
+  :init
+  (kirigami-global-mode 1))
+
+(add-hook 'emacs-lisp-mode-hook #'outline-minor-mode)
+(add-hook 'lisp-interaction-mode-hook #'hs-minor-mode) ; scratch
+(add-hook 'lisp-mode-hook #'outline-minor-mode)
+(add-hook 'conf-mode-hook #'outline-minor-mode)
+(add-hook 'markdown-mode-hook #'outline-minor-mode)
+(add-hook 'diff-mode-hook #'outline-minor-mode)
 
 (use-package flycheck
   :ensure t

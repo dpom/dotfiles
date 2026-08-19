@@ -3995,65 +3995,140 @@ Set up the =compile= package and ensure that compilation output automatically sc
 
 **** Folding
 
-- hideshow
+***** front-end
+
+- kirigami
   #+begin_src emacs-lisp
-(use-package hideshow
-  :ensure nil
-  :functions
-  (hs-fold-overlay-ellipsis)
-  :hook
-  (prog-mode . hs-minor-mode)
+(global-set-key (kbd "<f8>")  nil)
+(use-package kirigami
+  :ensure t
+  :commands (kirigami-open-fold
+             kirigami-open-fold-rec
+             kirigami-close-fold
+             kirigami-toggle-fold
+             kirigami-open-folds
+             kirigami-close-folds-except-current
+             kirigami-close-folds)
+
+  :bind
+  (("<f8> o" . kirigami-open-fold)      ; Open fold at point
+   ("<f8> O" . kirigami-open-fold-rec)  ; Open fold recursively
+   ("<f8> r" . kirigami-open-folds)     ; Open all folds
+   ("<f8> c" . kirigami-close-fold)     ; Close fold at point
+   ("<f8> m" . kirigami-close-folds)    ; Close all folds
+   ("<f8> a" . kirigami-toggle-fold))   ; Toggle fold at point
+
   :init
-  (setq hs-hide-comments-when-hiding-all nil)
-  (setq hs-allow-nesting t)
-  (setq hs-set-up-overlay #'hs-fold-overlay-ellipsis)
-  :config
-  (defun hs-fold-overlay-ellipsis (ov)
-    (when (eq 'code (overlay-get ov 'hs))
-      (overlay-put
-       ov 'display (propertize " … " 'face 'font-lock-comment-face))))
-  (defun local/toggle-fold ()
-    (interactive)
-    (save-excursion
-      (end-of-line)
-      (hs-toggle-hiding)))
-  (defun local/hide-level ()
-    (interactive)
-    (hs-hide-level 1)))
+  (kirigami-global-mode 1))
   #+end_src
 
-- fold-dwim
+
+***** back-ends
+
+- outline (buit-in)
   #+begin_src emacs-lisp
-(use-package fold-dwim
-  :ensure t
-  :demand t
-  :config
-  (global-set-key (kbd "<f8>")      'fold-dwim-toggle)
-  (global-set-key (kbd "<M-f8>")    'fold-dwim-hide-all)
-  (global-set-key (kbd "<S-M-f8>")  'fold-dwim-show-all))
+(add-hook 'emacs-lisp-mode-hook #'outline-minor-mode)
+(add-hook 'lisp-interaction-mode-hook #'hs-minor-mode) ; scratch
+(add-hook 'lisp-mode-hook #'outline-minor-mode)
+(add-hook 'conf-mode-hook #'outline-minor-mode)
+(add-hook 'markdown-mode-hook #'outline-minor-mode)
+(add-hook 'diff-mode-hook #'outline-minor-mode)
+
   #+end_src
 
 - ts-fold
   #+begin_src emacs-lisp :tangle no
-;; (use-package tree-sitter
-;;   :ensure t)
 (use-package treesit-fold
-  :ensure t
-  :hook
-  (prog-mode-hook . treesit-fold-mode)
+  :commands (treesit-fold-close
+             treesit-fold-close-all
+             treesit-fold-open
+             treesit-fold-toggle
+             treesit-fold-open-all
+             treesit-fold-mode
+             global-treesit-fold-mode
+             treesit-fold-open-recursively
+             treesit-fold-line-comment-mode)
+
+  :custom
+  (treesit-fold-line-count-show t)
+  (treesit-fold-line-count-format " ▼")
+
   :config
-  (global-set-key (kbd "<f8>")      'treesit-fold-toggle)
-  (global-set-key (kbd "<M-f8>")    'treesit-fold-hide-all)
-  (global-set-key (kbd "<S-M-f8>")  'treesit-fold-show-all))
+  (set-face-attribute 'treesit-fold-replacement-face nil
+                      :foreground "#808080"
+                      :box nil
+                      :weight 'bold))
+
+;; Systems and General Purpose
+(add-hook 'c-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'c++-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'java-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'rust-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'go-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'ruby-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'php-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'csharp-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'go-mod-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'lua-ts-mode-hook #'treesit-fold-mode)
+
+;; Web and Frontend
+(add-hook 'js-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'typescript-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'tsx-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'css-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'html-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'heex-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'xml-ts-mode-hook #'treesit-fold-mode)
+
+;; Scripting and Infrastructure
+(add-hook 'bash-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'cmake-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'dockerfile-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'awk-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'vimscript-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'nix-ts-mode-hook #'treesit-fold-mode)
+
+;; Data and Configuration
+(add-hook 'json-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'toml-ts-mode-hook #'treesit-fold-mode)
+
+;; Build Systems and Makefiles
+(add-hook 'makefile-ts-mode-hook #'treesit-fold-mode)
+
+;; Scientific, Data Science, and Academic
+(add-hook 'latex-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'beancount-ts-mode-hook #'treesit-fold-mode)
+
+;; Documentation and Diagrams
+(add-hook 'markdown-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'mermaid-ts-mode-hook #'treesit-fold-mode)
+
+;; Other
+(add-hook 'gdscript-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'clojure-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'caml-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'ocaml-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'erlang-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'elixir-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'scala-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'dart-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'haskell-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'julia-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'kotlin-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'gleam-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'noir-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'swift-ts-mode-hook #'treesit-fold-mode)
+(add-hook 'zig-ts-mode-hook #'treesit-fold-mode)
+
   #+end_src
 
-
-
 ***** References
+
 1. http://wikemacs.org/wiki/Folding
 2. [[https://github.com/gregsexton/origami.el][origami]]
 3. https://www.reddit.com/r/emacs/comments/9vy257/fastest_code_folding_mode/
 4. https://github.com/alexmurray/evil-vimish-fold
+5. https://www.jamescherti.com/emacs-the-definitive-guide-to-code-folding/
 
 **** Linters
 
