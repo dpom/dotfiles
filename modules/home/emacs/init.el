@@ -888,11 +888,22 @@ provide language-specific keyword completion."
   (popper-mode +1)
   (popper-echo-mode +1))
 
-(use-package midnight
-  :ensure nil
-  :demand t
-  :config
-  (midnight-mode))
+(use-package buffer-terminator
+  :ensure t
+  :custom
+  ;; Enable/Disable verbose mode to log buffer cleanup events
+  (buffer-terminator-verbose nil)
+
+  ;; Set the inactivity timeout (in seconds) after which buffers are considered
+  ;; inactive (default is 30 minutes):
+  (buffer-terminator-inactivity-timeout (* 30 60)) ; 30 minutes
+
+  ;; Define how frequently the cleanup process should run (default is every 10
+  ;; minutes):
+  (buffer-terminator-interval (* 10 60)) ; 10 minutes
+
+  :init
+  (buffer-terminator-mode 1))
 
 (customize-set-variable 'undo-tree-auto-save-history nil)
 
@@ -1219,7 +1230,11 @@ provide language-specific keyword completion."
 
 (use-package avy
   :ensure t
-  :demand t
+  :commands (avy-goto-char
+             avy-goto-char-2
+             avy-next)
+  :init
+  (global-set-key (kbd "<f9>") #'avy-goto-char-2)
   :custom
   (avy-all-windows 'all-frames)
   :config
@@ -1255,7 +1270,6 @@ provide language-specific keyword completion."
   (defun local/avy-mark-to-char (pt)
     (activate-mark)
     (goto-char pt)))
-(global-set-key (kbd "<f9>") #'avy-goto-char)
 
 (use-package bookmark
   :ensure nil
@@ -2030,10 +2044,14 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
 
 (use-package diff-hl
   :ensure t
-  :commands (diff-hl-mode diff-hl-dired-mode)
-  ;; :autoload (diff-hl-magit-pre-refresh diff-hl-magit-post-refresh)
-  :hook
-  ((prog-mode conf-mode) . diff-hl-mode))
+  :commands (diff-hl-mode
+             global-diff-hl-mode)
+  :hook (prog-mode . diff-hl-mode)
+  :init
+  (setq diff-hl-flydiff-delay 0.4)  ; Faster
+  (setq diff-hl-show-staged-changes nil)  ; Realtime feedback
+  (setq diff-hl-update-async t)  ; Do not block Emacs
+  (setq diff-hl-global-modes '(not pdf-view-mode image-mode)))
 
 (use-package smerge-mode
     :ensure nil
@@ -2787,12 +2805,20 @@ With a prefix (C-u), replace the selected region."
 
 (use-package helpful
   :ensure t
-  :demand t
+  :commands (helpful-callable
+             helpful-variable
+             helpful-key
+             helpful-command
+             helpful-at-point
+             helpful-function)
   :bind
-  (:map help-map
-        ("h" . helpful-at-point)
-        ("C" . helpful-command)
-        ("M" . helpful-macro)))
+  ([remap describe-command] . helpful-command)
+  ([remap describe-function] . helpful-callable)
+  ([remap describe-key] . helpful-key)
+  ([remap describe-symbol] . helpful-symbol)
+  ([remap describe-variable] . helpful-variable)
+  :custom
+  (helpful-max-buffers 7))
 
 (use-package devdocs
   :ensure t
@@ -2960,11 +2986,34 @@ With a prefix (C-u), replace the selected region."
 
 (use-package dumb-jump
   :ensure t
-  :hook
-  (xref-backend-functions . dumb-jump-xref-activate)
+  :commands dumb-jump-xref-activate
   :init
-  (setq dumb-jump-default-project user-emacs-directory)
-  (setq dumb-jump-selector 'completing-read))
+  ;; Register `dumb-jump' as an xref backend so it integrates with
+  ;; `xref-find-definitions'. A priority of 80 ensures it is used only when no
+  ;; more specific backend is available.
+  (with-eval-after-load 'xref
+    (add-hook 'xref-backend-functions #'dumb-jump-xref-activate 80))
+
+  (setq dumb-jump-aggressive nil)
+  ;; (setq dumb-jump-quiet t)
+
+  ;; Number of seconds a rg/grep/find command can take before being warned to
+  ;; use ag and config.
+  (setq dumb-jump-max-find-time 3)
+
+  ;; Use `completing-read' so that selection of jump targets integrates with the
+  ;; active completion framework (e.g., Vertico, Ivy, Helm, Icomplete),
+  ;; providing a consistent minibuffer-based interface whenever multiple
+  ;; definitions are found.
+  (setq dumb-jump-selector 'completing-read)
+
+  :config
+  ;; If ripgrep is available, force `dumb-jump' to use it because it is
+  ;; significantly faster and more accurate than the default searchers (grep,
+  ;; ag, etc.).
+  (when (executable-find "rg")
+    (setq dumb-jump-force-searcher 'rg)
+    (setq dumb-jump-prefer-searcher 'rg)))
 
 (with-eval-after-load 'transient
   (transient-define-prefix local/jump-menu ()
@@ -4166,4 +4215,14 @@ Analyze the following code and provide suggestions regarding:
   (meow-global-mode 1)
   )
 
-(server-start)
+(use-package server
+  :ensure nil
+  :if (not (daemonp))
+  :preface
+  (defun local/server-start ()
+    "Start the Emacs server if no server process is currently active."
+    (unless (server-running-p)
+      (server-start)))
+  :init
+  ;; Defer starting the server until after Emacs has finished initializing
+  (add-hook 'emacs-startup-hook #'local/server-start))
