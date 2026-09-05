@@ -1234,7 +1234,7 @@ provide language-specific keyword completion."
              avy-goto-char-2
              avy-next)
   :init
-  (global-set-key (kbd "<f9>") #'avy-goto-char-2)
+  (global-set-key (kbd "<f9>") #'avy-goto-char)
   :custom
   (avy-all-windows 'all-frames)
   :config
@@ -2600,59 +2600,6 @@ codebase before making changes."
     :include-tool-results 't)
   )
 
-(with-eval-after-load 'gptel
-  (defcustom local/commit-msg-system
-    "You generate Git commit messages from diffs. Analyze the diff carefully and describe what changed and why.
-
-Format: conventional commits: type(scope): subject
-
-<body>
-
-Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
-
-Rules:
-- Subject: max 50 chars, imperative mood, no period
-- Body: wrap at 72 chars, explain motivation
-- Output ONLY the commit message, nothing else"
-    "System prompt for git commit message generation."
-    :type 'string
-    :group 'ai)
-
-  (gptel-make-preset 'commit-message
-    :description "preset for commit messages"
-    :backend "Ollama"
-    :model 'qwen2.5-coder:7b
-    :system local/commit-msg-system
-    :stream 't
-    :temperature 0.7)
-
-(defun local/generate-commit-message ()
-  "Generate a git commit message from staged changes via gptel/Ollama.
-Inserts the generated message at point."
-  (interactive)
-  (let* ((git-root-dir (locate-dominating-file default-directory ".git"))
-         (diff (when git-root-dir
-                 (shell-command-to-string "git diff --cached"))))
-    (unless git-root-dir
-      (user-error "Not inside a Git repository"))
-    (when (string-empty-p diff)
-      (user-error "No staged changes to commit"))
-    (let* ((gptel-buf (get-buffer-create "*gptel-commit-msg*")))
-      (with-current-buffer gptel-buf
-        (setq-local gptel-backend (gptel-get-backend "Ollama"))
-        (setq-local gptel-model 'qwen2.5-coder:7b))
-      (gptel-request
-          (format "Generate a commit message for this diff:\n\n%s" diff)
-        :buffer gptel-buf
-        :system local/commit-msg-system
-        :context (current-buffer)
-        :callback (lambda (response info)
-                    (if (stringp response)
-                        (with-current-buffer (plist-get info :context)
-                          (insert response))
-                      (message "gptel error: %s"
-                               (plist-get info :status)))))))))
-
 (use-package gptel-agent
   :ensure t
   :after gptel
@@ -2690,6 +2637,53 @@ With a prefix (C-u), replace the selected region."
                               (insert response))
                           (message "Error: %s" info)))))
     (message "Please select a text first!"))))
+
+(with-eval-after-load 'gptel
+  (defcustom local/commit-msg-system
+    "You generate Git commit messages from diffs. Analyze the diff carefully and describe what changed and why.
+
+Format: conventional commits: type(scope): subject
+
+<body>
+
+Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
+
+Rules:
+- Subject: overview of changes, max 50 chars, imperative mood, no period
+- Body: list changes, wrap at 72 chars
+- Output ONLY the commit message, nothing else"
+    "System prompt for git commit message generation."
+    :type 'string
+    :group 'ai)
+
+  (defcustom local/commit-msg-llm "qwen2.5-coder:3b"
+    "LLM for translations."
+    :type 'string
+    :group 'ai)
+
+(defun local/generate-commit-message ()
+  "Generate a git commit message from staged changes via gptel/Ollama.
+Inserts the generated message at point."
+  (interactive)
+  (let* ((git-root-dir (locate-dominating-file default-directory ".git"))
+         (diff (when git-root-dir
+                 (shell-command-to-string "git diff --cached"))))
+    (unless git-root-dir
+      (user-error "Not inside a Git repository"))
+    (when (string-empty-p diff)
+      (user-error "No staged changes to commit"))
+    (let*
+        ((gptel-model local/commit-msg-llm)
+         (gptel-backend (gptel-get-backend "Ollama")))
+      (gptel-request
+          (format "Generate a commit message for this diff:\n\n%s" diff)
+        :system local/commit-msg-system
+        :callback (lambda (response info)
+                    (if (stringp response)
+                        (with-current-buffer (plist-get info :buffer)
+                          (insert response))
+                      (message "gptel error: %s"
+                               (plist-get info :status)))))))))
 
 (defcustom local/response-format
   (concat "Format all the response exclusively in org-mode syntax\n"
@@ -3018,19 +3012,18 @@ With a prefix (C-u), replace the selected region."
 (with-eval-after-load 'transient
   (transient-define-prefix local/jump-menu ()
       "jump menu"
-      [("a" "apropos" xref-find-apropos)
+      [("N" "ns" cider-find-ns)
+       ("a" "apropos" xref-find-apropos)
        ("b" "back" xref-go-back)
        ("d" "definition" xref-find-definitions)
        ("g" "first-error" flycheck-first-error)
        ("j" "next-ref" xref-next-line)
        ("k" "prev-ref" xref-prev-line)
-       ("r" "references" xref-find-references)
-       ;; ("p" "prev-error" flymake-goto-prev-error)
-       ("p" "prev-error" flycheck-previous-error)
-       ("o" "open" org-open-at-point)
-       ;; ("n" "next-error" flymake-goto-next-error)
+       ("l" "list errors" flycheck-list-errors)
        ("n" "next-error" flycheck-next-error)
-       ("N" "ns" cider-find-ns)]))
+       ("o" "open" org-open-at-point)
+       ("p" "prev-error" flycheck-previous-error)
+       ("r" "references" xref-find-references)]))
 
 (use-package lsp-mode
     :ensure t
@@ -3808,6 +3801,80 @@ Analyze the following code and provide suggestions regarding:
   (setq-default py-vterm-interaction-repl-program "ipython")
   (setq-default py-vterm-interaction-silent-cells t)
   )
+
+(require 'python)
+
+(defun local/python-show-doc (symbol-name module-name)
+  "Afișează documentația folosind pydoc într-un buffer separat."
+  (let* ((full-name (if (or (null module-name) (string= module-name ""))
+                        symbol-name
+                      (format "%s.%s" module-name symbol-name)))
+         (buf-name (format "*Pydoc: %s*" full-name))
+         (python-cmd (or (bound-and-true-p python-shell-interpreter) "python3")))
+    (with-current-buffer (get-buffer-create buf-name)
+      (read-only-mode -1)
+      (erase-buffer)
+      (message "Se obține documentația pentru %s..." full-name)
+      (call-process python-cmd nil t nil "-m" "pydoc" full-name)
+      (goto-char (point-min))
+      (read-only-mode 1)
+      (display-buffer (current-buffer)))))
+
+(defun local/python-doc-at-point ()
+  "Afișează docstring-ul pentru funcția Python sub cursor.
+Detectează contextul atât în `python-mode` cât și în `clojure-mode` (Basilisp)."
+  (interactive)
+  (let* (;; Extragem simbolul în funcție de modul curent
+         (sym (cond
+               ((derived-mode-p 'python-mode 'python-ts-mode)
+                (if (fboundp 'python-info-current-symbol)
+                    (python-info-current-symbol t)
+                  (thing-at-point 'symbol t)))
+               ((derived-mode-p 'clojure-mode 'clojure-ts-mode)
+                (thing-at-point 'symbol t))
+               (t (thing-at-point 'symbol t))))
+         (func-name (when sym (substring-no-properties sym)))
+         module prefix suffix)
+
+    (unless func-name
+      (user-error "Nu s-a găsit niciun simbol valid sub cursor!"))
+
+    ;; Deducerea contextului/modulului
+    (cond
+     ;; Cazul 1: Basilisp / Clojure (ex: namespace/funcție -> math/sqrt, np/array)
+     ((and (derived-mode-p 'clojure-mode 'clojure-ts-mode)
+           (string-match "^\\([^/]+\\)/\\(.*\\)$" func-name))
+      (setq prefix (match-string 1 func-name))
+      (setq suffix (match-string 2 func-name))
+      (save-excursion
+        (goto-char (point-min))
+        (if (re-search-forward (format "\\[\\([a-zA-Z0-9_.-]+\\)[^]]*\\b:as\\b[ \t\n]+%s\\b" prefix) nil t)
+            (setq module (match-string-no-properties 1))
+          (setq module prefix)))
+      (setq func-name suffix))
+
+     ;; Cazul 2: Python standard cu prefix (ex: np.array, os.path.join)
+     ((string-match "^\\([a-zA-Z0-9_]+\\)\\.\\(.*\\)$" func-name)
+      (setq prefix (match-string 1 func-name))
+      (setq suffix (match-string 2 func-name))
+      (save-excursion
+        (goto-char (point-min))
+        (if (re-search-forward (format "^\\s-*import\\s-+\\([a-zA-Z0-9_.]+\\)\\s-+as\\s-+%s\\b" prefix) nil t)
+            (setq module (match-string-no-properties 1))
+          (setq module prefix)))
+      (setq func-name suffix))
+
+     ;; Cazul 3: Python clasic (ex: from biblioteca import func_name)
+     ((save-excursion
+        (goto-char (point-min))
+        (re-search-forward (format "^\\s-*from\\s-+\\([a-zA-Z0-9_.]+\\)\\s-+import\\s-+.*\\b%s\\b" func-name) nil t))
+      (setq module (match-string-no-properties 1)))
+
+     ;; Cazul 4: Minibuffer fallback
+     (t
+      (setq module (read-string (format "Bibliotecă Python pentru '%s' (lasă gol dacă e built-in): " func-name)))))
+
+    (local/python-show-doc func-name module)))
 
 (with-eval-after-load 'transient
   (transient-define-prefix local/python-menu ()

@@ -1823,7 +1823,7 @@ emacs has countless search commands in buffers. The problem is that there are to
              avy-goto-char-2
              avy-next)
   :init
-  (global-set-key (kbd "<f9>") #'avy-goto-char-2)
+  (global-set-key (kbd "<f9>") #'avy-goto-char)
   :custom
   (avy-all-windows 'all-frames)
   :config
@@ -4253,19 +4253,18 @@ Set up the =compile= package and ensure that compilation output automatically sc
 (with-eval-after-load 'transient
   (transient-define-prefix local/jump-menu ()
       "jump menu"
-      [("a" "apropos" xref-find-apropos)
+      [("N" "ns" cider-find-ns)
+       ("a" "apropos" xref-find-apropos)
        ("b" "back" xref-go-back)
        ("d" "definition" xref-find-definitions)
        ("g" "first-error" flycheck-first-error)
        ("j" "next-ref" xref-next-line)
        ("k" "prev-ref" xref-prev-line)
-       ("r" "references" xref-find-references)
-       ;; ("p" "prev-error" flymake-goto-prev-error)
-       ("p" "prev-error" flycheck-previous-error)
-       ("o" "open" org-open-at-point)
-       ;; ("n" "next-error" flymake-goto-next-error)
+       ("l" "list errors" flycheck-list-errors)
        ("n" "next-error" flycheck-next-error)
-       ("N" "ns" cider-find-ns)]))
+       ("o" "open" org-open-at-point)
+       ("p" "prev-error" flycheck-previous-error)
+       ("r" "references" xref-find-references)]))
   #+end_src
 
 **** Language Server Support (LSP)
@@ -5292,6 +5291,82 @@ sudo npm -g install js-beautify
   (setq-default py-vterm-interaction-repl-program "ipython")
   (setq-default py-vterm-interaction-silent-cells t)
   )
+  #+end_src
+- helper pentru documetatie:
+  #+begin_src emacs-lisp
+(require 'python)
+
+(defun local/python-show-doc (symbol-name module-name)
+  "Afișează documentația folosind pydoc într-un buffer separat."
+  (let* ((full-name (if (or (null module-name) (string= module-name ""))
+                        symbol-name
+                      (format "%s.%s" module-name symbol-name)))
+         (buf-name (format "*Pydoc: %s*" full-name))
+         (python-cmd (or (bound-and-true-p python-shell-interpreter) "python3")))
+    (with-current-buffer (get-buffer-create buf-name)
+      (read-only-mode -1)
+      (erase-buffer)
+      (message "Se obține documentația pentru %s..." full-name)
+      (call-process python-cmd nil t nil "-m" "pydoc" full-name)
+      (goto-char (point-min))
+      (read-only-mode 1)
+      (display-buffer (current-buffer)))))
+
+(defun local/python-doc-at-point ()
+  "Afișează docstring-ul pentru funcția Python sub cursor.
+Detectează contextul atât în `python-mode` cât și în `clojure-mode` (Basilisp)."
+  (interactive)
+  (let* (;; Extragem simbolul în funcție de modul curent
+         (sym (cond
+               ((derived-mode-p 'python-mode 'python-ts-mode)
+                (if (fboundp 'python-info-current-symbol)
+                    (python-info-current-symbol t)
+                  (thing-at-point 'symbol t)))
+               ((derived-mode-p 'clojure-mode 'clojure-ts-mode)
+                (thing-at-point 'symbol t))
+               (t (thing-at-point 'symbol t))))
+         (func-name (when sym (substring-no-properties sym)))
+         module prefix suffix)
+
+    (unless func-name
+      (user-error "Nu s-a găsit niciun simbol valid sub cursor!"))
+
+    ;; Deducerea contextului/modulului
+    (cond
+     ;; Cazul 1: Basilisp / Clojure (ex: namespace/funcție -> math/sqrt, np/array)
+     ((and (derived-mode-p 'clojure-mode 'clojure-ts-mode)
+           (string-match "^\\([^/]+\\)/\\(.*\\)$" func-name))
+      (setq prefix (match-string 1 func-name))
+      (setq suffix (match-string 2 func-name))
+      (save-excursion
+        (goto-char (point-min))
+        (if (re-search-forward (format "\\[\\([a-zA-Z0-9_.-]+\\)[^]]*\\b:as\\b[ \t\n]+%s\\b" prefix) nil t)
+            (setq module (match-string-no-properties 1))
+          (setq module prefix)))
+      (setq func-name suffix))
+
+     ;; Cazul 2: Python standard cu prefix (ex: np.array, os.path.join)
+     ((string-match "^\\([a-zA-Z0-9_]+\\)\\.\\(.*\\)$" func-name)
+      (setq prefix (match-string 1 func-name))
+      (setq suffix (match-string 2 func-name))
+      (save-excursion
+        (goto-char (point-min))
+        (if (re-search-forward (format "^\\s-*import\\s-+\\([a-zA-Z0-9_.]+\\)\\s-+as\\s-+%s\\b" prefix) nil t)
+            (setq module (match-string-no-properties 1))
+          (setq module prefix)))
+      (setq func-name suffix))
+
+     ;; Cazul 3: Python clasic (ex: from biblioteca import func_name)
+     ((save-excursion
+        (goto-char (point-min))
+        (re-search-forward (format "^\\s-*from\\s-+\\([a-zA-Z0-9_.]+\\)\\s-+import\\s-+.*\\b%s\\b" func-name) nil t))
+      (setq module (match-string-no-properties 1)))
+
+     ;; Cazul 4: Minibuffer fallback
+     (t
+      (setq module (read-string (format "Bibliotecă Python pentru '%s' (lasă gol dacă e built-in): " func-name)))))
+
+    (local/python-show-doc func-name module)))
   #+end_src
 - specific menu
   #+begin_src emacs-lisp
