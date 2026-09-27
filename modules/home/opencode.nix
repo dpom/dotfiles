@@ -8,7 +8,7 @@ let
   # 1. Definim șablonul de bază fără modelele hardcodate
   opencodeTemplate = pkgs.writeText "opencode-template.json" ''
     {
-      "model": "ollama-cloud/gpt-oss:20b",
+      "model": "opencode/big-pickle",
       "provider": {
         "ollama": {
           "npm": "@ai-sdk/openai-compatible",
