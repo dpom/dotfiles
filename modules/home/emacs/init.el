@@ -533,13 +533,17 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   (:map corfu-map
         ([return] . nil)
         ("RET" . nil)
-        ("TAB" . corfu-expand)
-        ([tab] . corfu-expand)
+        ("TAB" . corfu-insert)
+        ([tab] . corfu-insert)
         ("S-TAB" . corfu-previous)
         ([backtab] . corfu-previous)
         ("C-e" . corfu-complete))
   :custom
+  (corfu-auto t)                 ; Activează auto-completarea automată
+  (corfu-auto-prefix 3)          ; Deschide popup-ul doar după minim 3 caractere tăiate/scrise
+  (corfu-count 10)               ; Afișează maxim 10 opțiuni în lista popup-ului
   (corfu-cycle t)
+  (corfu-preselect 'prompt)      ; Nu preselectează din start primul candidat (permite completarea prefixului la primul TAB)
   (corfu-preselect 'first)
   :config
   (setq corfu-popupinfo-delay '(1.25 . 0.5))
@@ -890,6 +894,7 @@ provide language-specific keyword completion."
 
 (use-package buffer-terminator
   :ensure t
+  :demand t
   :custom
   ;; Enable/Disable verbose mode to log buffer cleanup events
   (buffer-terminator-verbose nil)
@@ -3490,6 +3495,7 @@ Analyze the following code and provide suggestions regarding:
     ("hh" "doc" cider-doc)
     ("hj" "javadoc" cider-javadoc)
     ("hn" "namespace" cider-browse-ns)
+    ("hp" "python function" local/python-doc-at-point)
     ;; ("hr" "reference book" clojure-essential-ref)
     ("hs" "spec" cider-browse-spec)]
    ["REPL"
