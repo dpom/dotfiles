@@ -1190,7 +1190,7 @@ options = {
 }:
 let
   cfg = config.dpom-ollama;
-  version = "0.32.9";
+  version = "0.34.0";
 
   # Prebuilt binaries from the ollama/ollama GitHub release.
   # Kept up to date with bin/update-ollama.
@@ -1224,7 +1224,7 @@ let
 
   ollama-cpu = mkOllamaBase {
     asset = "ollama-linux-amd64.tar.zst";
-    hash = "sha256-XXR6QzafYeOPILWjn8xckGR+VizcYeLlYDTxxbET1UA=";
+    hash = "sha256-z5WIZyiVmqCZELs03lzKHMWo9oADtVlxl9PywtV8CAQ=";
   };
 
   # ROCm libraries only; layered over the base binary below.
@@ -1233,7 +1233,7 @@ let
     inherit version;
     src = pkgs.fetchurl {
       url = "https://github.com/ollama/ollama/releases/download/v${version}/ollama-linux-amd64-rocm.tar.zst";
-      hash = "sha256-q5PJMd8+pXCCf1f6dSs76nu8lhr3FBL8DUza9cSKNWo=";
+      hash = "sha256-mixXd3Oj3TVzNkFOZxdJBiN6w9RDx985E2Tq/z8Ey6c=";
     };
     dontUnpack = true;
     nativeBuildInputs = [ pkgs.zstd ];
