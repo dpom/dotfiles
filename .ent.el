@@ -43,22 +43,11 @@ Returns nil if the file does not exist or is not readable."
       :action (lambda ()
                 (insert  (if (file-parens-balanced-p
                               (expand-file-name "init.el"
-                                                (file-name-as-directory (file-name-concat ent-project-home "pkgs" "emacs"))))
+                                                (file-name-as-directory (file-name-concat ent-project-home "modules" "home" "emacs"))))
                              "init file ok\n"
                            "init file with syntax error\n"))))
 
 
-(task "lock"
-      :doc "Generate emacs lock file"
-      :action (concat "cd " ent-project-home "pkgs/emacs; nix run .#lock --impure -L"))
-
-
-(task "check-emacs"
-      :doc "Check generated emacs-config"
-      :deps "generate verify-init lock"
-      :action (concat  "cd "
-                       ent-project-home
-                       "pkgs/emacs; nix --show-trace run .#emacs-config -- --init-directory=. --debug-init"))
 
 (task "update-inputs"
       :doc "Update flakes inputs"
