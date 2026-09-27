@@ -544,7 +544,6 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   (corfu-count 10)               ; Afișează maxim 10 opțiuni în lista popup-ului
   (corfu-cycle t)
   (corfu-preselect 'prompt)      ; Nu preselectează din start primul candidat (permite completarea prefixului la primul TAB)
-  (corfu-preselect 'first)
   :config
   (setq corfu-popupinfo-delay '(1.25 . 0.5))
   (corfu-popupinfo-mode 1) ; shows documentation after `corfu-popupinfo-delay'
