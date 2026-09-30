@@ -1,0 +1,194 @@
+#!/usr/bin/env bb
+; update-opencode
+; Pins the opencode agent to the latest anomalyco/opencode GitHub release.
+; Edits the opencode module block in Config.txt (the Org source of truth),
+; then re-tangles via ./bin/generate-admin so modules/home/opencode.nix
+; stays in sync. Stops after updating files: no home-manager switch, no
+; nixos-rebuild, no git.
+;
+; The release asset is a prebuilt single-file executable, so the source
+; hash comes straight from the GitHub API asset `digest` field and no
+; hash-discovery build is needed (unlike update-pi's npmDepsHash).
+;
+; If the API omits the digest we fall back to downloading the asset and
+; hashing it, same as update-ollama does for ollama.
+;
+; The derivation in the module must not use autoPatchelfHook: it corrupts
+; this Bun single-file binary in a way that only shows up as a wrong
+; --version. See adr/0007.
+
+(require '[babashka.curl :as curl]
+         '[babashka.process :as p]
+         '[cheshire.core :as json]
+         '[clojure.string :as str])
+
+(def config-file "Config.txt")
+(def block-open #"^\#\+begin_src nix :tangle modules/home/opencode\.nix$")
+(def block-close #"^\#\+end_src$")
+(def repo "anomalyco/opencode")
+(def asset "opencode-linux-x64.tar.gz")
+
+(def repo-root
+  (-> (System/getProperty "babashka.file")
+      java.io.File.
+      .getCanonicalFile
+      .getParentFile
+      .getParentFile
+      .getPath))
+
+(defn die [msg]
+  (binding [*out* *err*]
+    (println (str "error: " msg)))
+  (System/exit 1))
+
+(defn sh-out [& args]
+  (let [opts (if (map? (last args)) (last args) {})
+        args (if (map? (last args)) (butlast args) args)
+        {:keys [out err exit]} (apply p/sh opts args)]
+    (when (not= 0 exit)
+      (binding [*out* *err*]
+        (println (str "error: command failed: " (str/join " " args)))
+        (when (seq err) (println err)))
+      (System/exit 1))
+    (str/trim out)))
+
+(defn block-range [lines]
+  (let [i (first (keep-indexed (fn [idx l] (when (re-find block-open l) idx)) lines))
+        j (first (keep-indexed (fn [idx l]
+                                 (when (and (some? i) (> idx i))
+                                   (when (re-find block-close l) idx)))
+                               lines))]
+    (when (and (some? i) (some? j)) [i j])))
+
+(defn read-config []
+  (str/split-lines (slurp config-file)))
+
+(defn write-config [lines]
+  (let [text (str/join "\n" lines)
+        original (slurp config-file)
+        text (if (and (str/ends-with? original "\n")
+                      (not (str/ends-with? text "\n")))
+               (str text "\n")
+               text)]
+    (spit config-file text)))
+
+(defn pinned-version [lines]
+  (when-let [[i j] (block-range lines)]
+    (some (fn [line] (second (re-find #"^    version = \"([^\"]*)\";$" line)))
+          (subvec (vec lines) (inc i) j))))
+
+(defn pinned-hash [lines]
+  (when-let [[i j] (block-range lines)]
+    (some (fn [line] (second (re-find #"^      hash = \"([^\"]*)\";$" line)))
+          (subvec (vec lines) (inc i) j))))
+
+(defn patch-version [lines version]
+  (when-let [[i j] (block-range lines)]
+    (let [ver-re #"^    version = \"[^\"]*\";$"
+          ls (vec lines)]
+      (-> (subvec ls 0 (inc i))
+          (into (mapv (fn [line]
+                        (if (re-find ver-re line)
+                          (str/replace line ver-re
+                                       (str "    version = \"" version "\";"))
+                          line))
+                      (subvec ls (inc i) j)))
+          (into (subvec ls j))))))
+
+(defn patch-hash [lines sri]
+  (let [url-re #"^      url = \"https://github\.com/anomalyco/opencode/"]
+    (loop [acc [] seen? false [line & more] lines]
+      (cond
+        (nil? line) (vec acc)
+        (and seen? (re-find #"^      hash = \"[^\"]*\";$" line))
+        (recur (conj acc (str/replace line #"^      hash = \"[^\"]*\";$"
+                                      (str "      hash = \"" sri "\";")))
+               false more)
+        (re-find url-re line)
+        (recur (conj acc line) true more)
+        :else (recur (conj acc line) seen? more)))))
+
+(defn tangle []
+  (sh-out "bash" "./bin/generate-admin" {:dir repo-root}))
+
+; --- read current pin --------------------------------------------------------
+(def config-lines (read-config))
+(def current (pinned-version config-lines))
+(when (nil? current)
+  (die (str "could not read the pinned opencode version from " config-file)))
+(println (str "Current pinned version: " current))
+
+; --- latest release from GitHub API -----------------------------------------
+(println "Fetching latest release from GitHub API...")
+(def response
+  (curl/get (str "https://api.github.com/repos/" repo "/releases/latest")
+            {:throw false :connect-timeout 10 :timeout 60000}))
+(when (not= 200 (:status response))
+  (die (str "GitHub API request failed with status " (:status response))))
+
+(def release (json/parse-string (:body response) true))
+(def tag (get-in release [:tag_name]))
+(when (nil? tag)
+  (die "could not parse tag_name from GitHub API response"))
+(def version (str/replace tag #"^v" ""))
+(when-not (re-matches #"[0-9]+\.[0-9]+\.[0-9]+" version)
+  (die (str "unexpected release tag '" tag "'; expected vX.Y.Z")))
+(println (str "Latest release: " tag))
+
+; --- idempotence -------------------------------------------------------------
+(when (= version current)
+  (println (str "✓ opencode already up to date at " version))
+  (System/exit 0))
+
+; --- asset hash --------------------------------------------------------------
+(def found (some #(when (= (:name %) asset) %)
+                 (get-in release [:assets] [])))
+(when (nil? found)
+  (die (str "release " tag " does not publish the expected asset '" asset "'")
+       ))
+
+(def digest-hex
+  (->> (:digest found)
+       (or "")
+       (str/replace #"^sha256:" "")))
+
+(def hex
+  (if (re-matches #"[0-9a-f]{64}" digest-hex)
+    (do (println (str "Asset digest from GitHub API: sha256:" digest-hex))
+        digest-hex)
+    (do (binding [*out* *err*]
+          (println (str "Asset digest missing for " asset
+                        "; downloading to compute hash...")))
+        (-> (p/sh {:dir repo-root}
+                  "bash" "-c"
+                  (str "curl -fsSL --connect-timeout 10 --max-time 1800 "
+                       "\"https://github.com/" repo "/releases/download/" tag "/" asset "\" "
+                       "| sha256sum"))
+            :out
+            str/trim
+            (str/split #"\s+")
+            first))))
+
+(def sri (sh-out "nix" "hash" "convert" "--to" "sri" (str "sha256:" hex)))
+(println (str "Source hash: " sri))
+
+; --- patch Config.txt (block-scoped anchors) ---------------------------------
+(println (str "Patching " config-file " ..."))
+(def patched (-> config-lines
+                 (patch-version version)
+                 (patch-hash sri)))
+(write-config patched)
+
+; verify the patch landed
+(def new-version (pinned-version patched))
+(def new-hash (pinned-hash patched))
+(when-not (and (= new-version version) (= new-hash sri))
+  (die (str "failed to patch " config-file "; manual edit required")))
+
+; --- re-tangle ---------------------------------------------------------------
+(println "Re-tangling Config.txt via ./bin/generate-admin ...")
+(tangle)
+
+(println (str "✓ opencode pinned to " version))
+(println "Review the diff, then apply with: ent update-home")
+(println "Commit Config.txt, modules/home/opencode.nix, and this script together.")

@@ -5,6 +5,60 @@
   ...
 }:
 let
+  # opencode este pinuit la un release upstream, nu la pkgs.opencode din nixpkgs,
+  # ca în ADR-0006. Versiunea și hash-ul se actualizează cu bin/update-opencode.
+  opencode = pkgs.stdenvNoCC.mkDerivation rec {
+    pname = "opencode";
+    version = "1.18.33";
+    src = pkgs.fetchurl {
+      url = "https://github.com/anomalyco/opencode/releases/download/v${version}/${pname}-linux-x64.tar.gz";
+      hash = "sha256-5UYSMhOuR5CaQmhpKqS5SVDQEa/pysmTh1OiGU8cFtU=";
+    };
+
+    # Asset-ul de release conține un singur fișier `opencode`, fără director
+    # părinte, deci unpackFile din nixpkgs eșuează cu "unpacker appears to
+    # have produced no directories". De aceea despachetul manual.
+    unpackPhase = ''
+      runHook preUnpack
+      tar -xzf "$src"
+      runHook postUnpack
+    '';
+
+    # NU folosim autoPatchelfHook: pe acest executabil single-file din Bun
+    # patchelful automat corupe binarul în tăcăciune (build-ul trece, dar
+    # `--version` raportează versiunea runtime-ului Bun, nu pe cea a
+    # opencode). Vedem ADR-0007. Repunem interpreterul explicit, cu un
+    # singur apel patchelf.
+    nativeBuildInputs = [
+      pkgs.patchelf
+      pkgs.makeWrapper
+      pkgs.ripgrep
+      pkgs.versionCheckHook
+    ];
+
+    installPhase = ''
+      runHook preInstall
+      install -Dm755 opencode $out/bin/opencode
+      patchelf --set-interpreter ${pkgs.stdenv.cc.bintools.dynamicLinker} $out/bin/opencode
+      wrapProgram $out/bin/opencode --prefix PATH : ${lib.makeBinPath [ pkgs.ripgrep ]}
+      runHook postInstall
+    '';
+
+    # Descărcat ca binar, binarul poate ajunge stricat fără niciun semn la
+    # build. Verificarea de versiune face ca un astfel de caz să eșueze
+    # build-ul în loc să treacă tăcut spre o instalare defectă.
+    doInstallCheck = true;
+    versionCheckProgramArg = "--version";
+
+    meta = {
+      description = "AI coding agent built for the terminal";
+      homepage = "https://github.com/anomalyco/opencode";
+      license = pkgs.lib.licenses.mit;
+      mainProgram = "opencode";
+      platforms = [ "x86_64-linux" ];
+    };
+  };
+
   # 1. Definim șablonul de bază fără modelele hardcodate
   opencodeTemplate = pkgs.writeText "opencode-template.json" ''
     {
@@ -123,6 +177,9 @@ in
   config = lib.mkIf config.dpom-opencode.enable {
     # Păstrăm activarea programului (dacă instalează pachetul), dar eliminăm `programs.opencode.settings`
     programs.opencode.enable = true;
+
+    # Installăm pin-ul nostru, nu pkgs.opencode din nixpkgs (ADR-0006).
+    programs.opencode.package = opencode;
 
     # Adăugăm comanda în PATH pentru a o putea rula și manual oricând descarci un model nou
     home.packages = [ generateOpencodeConfig ];

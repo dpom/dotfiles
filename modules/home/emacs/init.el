@@ -2713,6 +2713,34 @@ Inserts the generated message at point."
       (agent-shell-google-make-authentication :login t))
   (setq agent-shell-prefer-viewport-interaction t))
 
+(use-package ai-code
+  :ensure t
+  ;; :vc (:url "tninja/ai-code-interface.el")
+  :config
+  (ai-code-set-backend 'opencode)
+  ;; other options are 'pi, 'claude-code, 'gemini, 'github-copilot-cli, 'open-interpreter, 'opencode, 'kilo, 'grok, 'cursor, 'kiro, 'codebuddy, 'aider, 'eca, 'agent-shell, 'claude-code-ide, 'claude-code-el 'codex
+  ;; Optional: default menu stays unchanged; use a narrower 2-column layout on smaller frames
+  ;; (setq ai-code-menu-layout 'two-columns)
+  ;; Enable global keybinding for the main menu
+  (global-set-key (kbd "C-c o") #'ai-code-menu)
+  ;; Optional: Try ghostel as an backend infra
+  (setq ai-code-backends-infra-terminal-backend 'ghostel)
+  ;; Optional: Disable @ file completion in comments and AI sessions
+  ;; (ai-code-prompt-filepath-completion-mode -1)
+  ;; Optional: Ask AI to run test after code changes, for a tighter build-test loop
+  (setq ai-code-auto-test-type 'ask-me)
+  ;; Optional: Disable numbered next steps for discussion prompts at send time
+  ;; (enabled by default)
+  ;; (setq ai-code-discussion-auto-follow-up-enabled nil)
+  ;; Optional: Show candidates as you type in task file, using company
+  ;; (add-hook 'ai-code-prompt-mode-hook #'ai-code-prompt-completion-setup)
+  ;; Optional: Turn on auto-revert buffer, so that the AI code change automatically appears in the buffer
+  (global-auto-revert-mode 1)
+  (setq auto-revert-interval 1) ;; set to 1 second for faster update
+  ;; Optional: Set up Magit integration for AI commands in Magit popups
+  (with-eval-after-load 'magit
+    (ai-code-magit-setup-transients)))
+
 (with-eval-after-load 'transient
   (transient-define-prefix local/ai-menu ()
     "ai menu"
@@ -2785,6 +2813,66 @@ Inserts the generated message at point."
 
   ;; 4. Adaugă o scurtătură în interfața de căutare pentru a apela meniul elfeed-score
   (define-key elfeed-search-mode-map "=" elfeed-score-map))
+
+    (use-package vterm
+      :ensure t
+    :custom (vterm-max-scrollback 10000))
+
+(use-package ghostel
+  :ensure t
+  :bind (:map ghostel-semi-char-mode-map
+         ("C-s"  . consult-line)
+         ("M-<backspace>" . ghostel-backward-kill-word)
+         ;; ;; I'm used to go up/down the shell history with M-n/p from eshell
+         ;; ;; Simulate this behavior in ghostel by sending C-p and C-n
+         ("M-p" . (lambda () (interactive) (ghostel-send-key "p" "ctrl")))
+         ("M-n" . (lambda () (interactive) (ghostel-send-key "n" "ctrl")))
+         :map project-prefix-map
+         ("m" . ghostel-project)
+         ("M" . ghostel-project-list-buffers))
+  :config
+  (defun ghostel-send-C-k-and-kill ()
+    "Send `C-k' to ghostel.
+Like normal Emacs `C-k'.  Kill to end of line and put content in kill-ring."
+    (interactive)
+    (kill-ring-save (point) (line-end-position))
+    (ghostel-send-key "k" "ctrl"))
+
+  (add-to-list 'project-switch-commands '(ghostel-project "Ghostel") t)
+  (add-to-list 'project-switch-commands '(ghostel-project-list-buffers "Ghostel buffers") t)
+  (add-to-list 'ghostel-eval-cmds '("magit-status-setup-buffer" magit-status-setup-buffer)))
+
+(use-package ghostel-eshell
+  :ensure nil
+  :hook (eshell-load . ghostel-eshell-visual-command-mode))
+
+(use-package ghostel-compile
+  :ensure nil
+  :hook (after-init . ghostel-compile-global-mode))
+
+(use-package ghostel-comint
+  :ensure nil
+  :hook (after-init . ghostel-comint-global-mode))
+
+(use-package ghostel-org
+  :ensure nil
+  :after org)
+
+(use-package consult-ghostel
+  :vc (:url "https://github.com/dakra/ghostel"
+       :lisp-dir "extensions/consult-ghostel"
+       :rev :newest)
+  :hook (after-init . consult-ghostel-mode)
+  :bind (:map project-prefix-map
+         ("m" . consult-ghostel-project)
+         :map ghostel-semi-char-mode-map
+         ("C-c h" . consult-ghostel-history)))
+
+    (require 'sh-script)
+    (add-hook 'after-save 'executable-make-buffer-file-executable-if-script-p)
+
+(with-eval-after-load 'org
+  (add-to-list 'org-babel-load-languages '(shell . t)))
 
 (use-package direnv
   :ensure t
@@ -3120,6 +3208,7 @@ Inserts the generated message at point."
      ("n" "new" local/mynew)
      ("p" "switch" project-switch-project)
      ("r" "replace" project-query-replace-regexp)
+     ("t" "terminal" ghostel-project)
      ;; ("w" "save state" project-x-window-state-save)
      ]))
 
@@ -3585,16 +3674,6 @@ Analyze the following code and provide suggestions regarding:
    ("l" "lsp" local/lsp-menu)
    ("j" "jump" local/jump-menu)
    ("s" "snatch" jsons-print-path)]))
-
-    (use-package vterm
-      :ensure t
-    :custom (vterm-max-scrollback 10000))
-
-    (require 'sh-script)
-    (add-hook 'after-save 'executable-make-buffer-file-executable-if-script-p)
-
-(with-eval-after-load 'org
-  (add-to-list 'org-babel-load-languages '(shell . t)))
 
     (use-package emacsql
         :ensure t)
@@ -4217,7 +4296,7 @@ Detectează contextul atât în `python-mode` cât și în `clojure-mode` (Basil
 (define-key mode-specific-map "O"  'org-clock-out)
 (define-key mode-specific-map "R"  'elfeed)
 (define-key mode-specific-map "S"  'local/start-task)
-(define-key mode-specific-map "T"  'vterm)
+(define-key mode-specific-map "T"  'ghostel)
 (define-key mode-specific-map "W"  'pass)
 (define-key mode-specific-map "a"  'local/agenda-menu)
 (define-key mode-specific-map "b"  'local/buffer-menu)
