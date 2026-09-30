@@ -37,7 +37,7 @@
       url = "github:Mic92/nix-ld";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-      nix-hermes.url = "github:0xrsydn/nix-hermes-agent";
+    nix-hermes.url = "github:0xrsydn/nix-hermes-agent";
   };
   outputs = { self,
               emacs-overlay,
@@ -51,7 +51,7 @@
               ... } @ inputs:
     let
       inherit (self) outputs;
-          lib = nixpkgs.lib // home-manager.lib;
+      lib = nixpkgs.lib // home-manager.lib;
       forEachSystem = f: lib.genAttrs (import systems) (system: f pkgsFor.${system});
       pkgsFor = lib.genAttrs (import systems) (
         system:
