@@ -82,13 +82,13 @@ nix-mode
 org-mode
 
 (center "#+begin_center" n> r> n> "#+end_center")
-(clj (concat "#+begin" "_src clojure") n> n> (concat "#+end" "_src") :post (forward-line -1))
+(clj (concat "#+begin" "_src clojure") n> n> (concat "#+end" "_src"))
 (comment "#+begin_comment" n> r> n> "#+end_comment")
 (dot "#+begin_src dot :file " p " :cmdline -Kdot -Tpng" n>
      "digraph G {" n>
      "}" n>
      "#+end_src")
-(elisp (concat "#+begin" "_src emacs-lisp ") n> n> (concat "#+end" "_src") :post (forward-line -1))
+(elisp (concat "#+begin" "_src emacs-lisp ") n> n> (concat "#+end" "_src"))
 (example "#+begin_example" n> r> n> "#+end_example")
 (img "#+ATTR_LaTeX: :width 0.8\textwidth :options keepaspectratio" n> "file:" p)
 (orghdr "#+TITLE: " (file-name-base (or (buffer-file-name) (buffer-name))) n
