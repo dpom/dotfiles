@@ -18,9 +18,18 @@ let
     # Asset-ul de release conține un singur fișier `opencode`, fără director
     # părinte, deci unpackFile din nixpkgs eșuează cu "unpacker appears to
     # have produced no directories". De aceea despachetul manual.
+    #
+    # Despachetăm într-un subdirector, NU direct în rădăcina build-ului.
+    # $TMPDIR este directorul de build (/build), iar opencode își creează
+    # cache-ul în $TMPDIR/opencode. Dacă am lăsa fișierul extras chiar în
+    # /build/opencode, mkdir-ul lui opencode s-ar lovește de un fișier existent
+    # și ar eșua cu EEXIST. Simptomul e derutant: `--version` trece (nu
+    # inițializează cache-ul), dar `opencode completion` moare tăcut, deci
+    # completările shell lipsesc fără motiv vizibil.
     unpackPhase = ''
       runHook preUnpack
-      tar -xzf "$src"
+      mkdir -p unpack
+      tar -xzf "$src" -C unpack
       runHook postUnpack
     '';
 
@@ -29,19 +38,33 @@ let
     # `--version` raportează versiunea runtime-ului Bun, nu pe cea a
     # opencode). Vedem ADR-0007. Repunem interpreterul explicit, cu un
     # singur apel patchelf.
+    #
+    # writableTmpDirAsHomeHook e necesar pentru completări: fără el opencode
+    # încearcă mkdir '/homeless-shelter' și moare cu EACCES în sandbox.
     nativeBuildInputs = [
+      pkgs.writableTmpDirAsHomeHook
       pkgs.patchelf
       pkgs.makeWrapper
       pkgs.ripgrep
+      pkgs.installShellFiles
       pkgs.versionCheckHook
     ];
 
     installPhase = ''
       runHook preInstall
-      install -Dm755 opencode $out/bin/opencode
+      install -Dm755 unpack/opencode $out/bin/opencode
       patchelf --set-interpreter ${pkgs.stdenv.cc.bintools.dynamicLinker} $out/bin/opencode
       wrapProgram $out/bin/opencode --prefix PATH : ${lib.makeBinPath [ pkgs.ripgrep ]}
       runHook postInstall
+    '';
+
+    # Generăm completările din binar, ca în rețeta nixpkgs. opencode le
+    # produce corect; e nevoie doar de writableTmpDirAsHomeHook și de
+    # despachetul în subdirector de mai sus.
+    postInstall = ''
+      installShellCompletion --cmd opencode \
+        --bash <($out/bin/opencode completion) \
+        --zsh <(SHELL=/bin/zsh $out/bin/opencode completion)
     '';
 
     # Descărcat ca binar, binarul poate ajunge stricat fără niciun semn la
