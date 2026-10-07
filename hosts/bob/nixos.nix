@@ -9,10 +9,10 @@
   dpom-xserver.enable = true;
   dpom-cdrom.enable = true;
   dpom-proton.enable = true;
-  # Bootloader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  # boot.loader.limine.maxGenerations = 10;
+    # Bootloader.
+    boot.loader.systemd-boot.enable = true;
+    boot.loader.efi.canTouchEfiVariables = true;
+    # boot.loader.limine.maxGenerations = 10;
   networking = {
     hostName = "bob"; # Define your hostname.
   
