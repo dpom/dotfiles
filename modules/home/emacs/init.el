@@ -989,7 +989,7 @@ provide language-specific keyword completion."
   (file-name-shadow-mode 1)
   (if (eq system-type 'darwin)
     (setq dired-use-ls-dired nil)
-    (setq dired-listing-switches "-AFhlv --group-directories-first"))
+    (setq dired-listing-switches "-Ahlv --group-directories-first"))
   (autoload 'dired-async-mode "dired-async.el" nil t))
 
 ;; Folosește GNU ls pe macOS dacă este disponibil
