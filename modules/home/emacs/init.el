@@ -2644,25 +2644,34 @@ With a prefix (C-u), replace the selected region."
 
 (with-eval-after-load 'gptel
   (defcustom local/commit-msg-system
-    "You generate Git commit messages from diffs. Analyze the diff carefully and describe what changed and why.
+    "You write Git commit messages from diffs.
 
-Format: conventional commits: type(scope): subject
+Output only the commit message, using this format:
+
+type(scope): subject
 
 <body>
 
-Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert.
-
 Rules:
-- Subject: overview of changes, max 50 chars, imperative mood, no period
-- Body: list changes, wrap at 72 chars
-- Output ONLY the commit message, nothing else"
+- type is one of feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+- scope is optional and names the most relevant file, module, or area
+- subject is at most 50 characters, imperative mood, no trailing period
+- body is optional, explains why the change was made, wrapped at 72 characters
+- summarize the overall intent even when the diff is large
+- do not review, explain, or quote the diff
+- do not wrap the message in markdown fences"
     "System prompt for git commit message generation."
     :type 'string
     :group 'ai)
 
-  (defcustom local/commit-msg-llm "qwen2.5-coder:3b"
-    "LLM for translations."
-    :type 'string
+  (defcustom local/commit-msg-llm 'qwen2.5-coder:7b
+    "LLM for commit message generation."
+    :type 'symbol
+    :group 'ai)
+
+  (defcustom local/commit-msg-max-diff-chars 12000
+    "Maximum diff size sent to the commit message LLM."
+    :type 'integer
     :group 'ai)
 
 (defun local/generate-commit-message ()
@@ -2671,11 +2680,15 @@ Inserts the generated message at point."
   (interactive)
   (let* ((git-root-dir (locate-dominating-file default-directory ".git"))
          (diff (when git-root-dir
-                 (shell-command-to-string "git diff --cached"))))
+                 (shell-command-to-string "git diff --cached")))
+         (truncated (> (length diff) local/commit-msg-max-diff-chars)))
     (unless git-root-dir
       (user-error "Not inside a Git repository"))
     (when (string-empty-p diff)
       (user-error "No staged changes to commit"))
+    (when truncated
+      (setq diff (concat (substring diff 0 local/commit-msg-max-diff-chars)
+                         "\n\n[diff truncated]")))
     (let*
         ((gptel-model local/commit-msg-llm)
          (gptel-backend (gptel-get-backend "Ollama")))
@@ -2683,11 +2696,16 @@ Inserts the generated message at point."
           (format "Generate a commit message for this diff:\n\n%s" diff)
         :system local/commit-msg-system
         :callback (lambda (response info)
-                    (if (stringp response)
-                        (with-current-buffer (plist-get info :buffer)
-                          (insert response))
+                    (cond
+                     ((stringp response)
+                      (with-current-buffer (plist-get info :buffer)
+                        (insert response)))
+                     ((eq response 'abort)
+                      (message "gptel aborted: %s"
+                               (plist-get info :status)))
+                     ((null response)
                       (message "gptel error: %s"
-                               (plist-get info :status)))))))))
+                               (plist-get info :status))))))))))
 
 (defcustom local/response-format
   (concat "Format all the response exclusively in org-mode syntax\n"

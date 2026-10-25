@@ -85,7 +85,23 @@ let
   # 1. Definim șablonul de bază fără modelele hardcodate
   opencodeTemplate = pkgs.writeText "opencode-template.json" ''
     {
+      "$schema": "https://opencode.ai/config.json",
       "model": "opencode/big-pickle",
+      "default_agent": "plan",
+      "permission": {
+         "*": "allow",
+         "edit": "allow",
+         "webfetch": "allow",
+         "external_directory": "ask",
+         "bash": {
+            "*": "allow",
+            "rm *": "ask",
+            "rmdir *": "ask",
+            "git push *": "ask",
+            "git checkout *": "ask",
+            "git restore *": "ask"
+        }
+      },
       "provider": {
         "ollama": {
           "npm": "@ai-sdk/openai-compatible",
