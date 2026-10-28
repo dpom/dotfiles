@@ -408,8 +408,12 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
 
 (global-subword-mode 1)
 (column-number-mode 1)      ; Show the column number
-(global-hl-line-mode t)
+(add-hook 'prog-mode-hook #'hl-line-mode)
+(add-hook 'text-mode-hook #'hl-line-mode)
+(add-hook 'conf-mode-hook #'hl-line-mode)
 (window-divider-mode 1)
+
+  (add-to-list 'debug-ignored-errors "^.*args-out-of-range.*global-hl-line-highlight.*$")
 
 
 
