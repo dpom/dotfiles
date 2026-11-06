@@ -78,6 +78,14 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
     (insert-file-contents (expand-file-name key "~/.config/sops-nix/secrets/"))
     (string-trim (buffer-string))))
 
+  (defun local/safe-hl-line-highlight (orig-fun &rest args)
+  "Suprimă silențios erorile de tip args-out-of-range din hl-line."
+  (condition-case nil
+      (apply orig-fun args)
+    (args-out-of-range nil)))
+
+(advice-add 'global-hl-line-highlight :around #'local/safe-hl-line-highlight)
+
 (use-package exec-path-from-shell
   :ensure t
   :demand t
@@ -2735,34 +2743,6 @@ Inserts the generated message at point."
       (agent-shell-google-make-authentication :login t))
   (setq agent-shell-prefer-viewport-interaction t))
 
-(use-package ai-code
-  :ensure t
-  ;; :vc (:url "tninja/ai-code-interface.el")
-  :config
-  (ai-code-set-backend 'opencode)
-  ;; other options are 'pi, 'claude-code, 'gemini, 'github-copilot-cli, 'open-interpreter, 'opencode, 'kilo, 'grok, 'cursor, 'kiro, 'codebuddy, 'aider, 'eca, 'agent-shell, 'claude-code-ide, 'claude-code-el 'codex
-  ;; Optional: default menu stays unchanged; use a narrower 2-column layout on smaller frames
-  ;; (setq ai-code-menu-layout 'two-columns)
-  ;; Enable global keybinding for the main menu
-  (global-set-key (kbd "C-c o") #'ai-code-menu)
-  ;; Optional: Try ghostel as an backend infra
-  (setq ai-code-backends-infra-terminal-backend 'ghostel)
-  ;; Optional: Disable @ file completion in comments and AI sessions
-  ;; (ai-code-prompt-filepath-completion-mode -1)
-  ;; Optional: Ask AI to run test after code changes, for a tighter build-test loop
-  (setq ai-code-auto-test-type 'ask-me)
-  ;; Optional: Disable numbered next steps for discussion prompts at send time
-  ;; (enabled by default)
-  ;; (setq ai-code-discussion-auto-follow-up-enabled nil)
-  ;; Optional: Show candidates as you type in task file, using company
-  ;; (add-hook 'ai-code-prompt-mode-hook #'ai-code-prompt-completion-setup)
-  ;; Optional: Turn on auto-revert buffer, so that the AI code change automatically appears in the buffer
-  (global-auto-revert-mode 1)
-  (setq auto-revert-interval 1) ;; set to 1 second for faster update
-  ;; Optional: Set up Magit integration for AI commands in Magit popups
-  (with-eval-after-load 'magit
-    (ai-code-magit-setup-transients)))
-
 (with-eval-after-load 'transient
   (transient-define-prefix local/ai-menu ()
     "ai menu"
@@ -3447,7 +3427,15 @@ Code:
            (form (cider-last-sexp))
            (clj-cmd (format "(do (require 'clj-async-profiler.core) (clj-async-profiler.core/profile %s))" form)))
             (cider-interactive-eval clj-cmd nil nil `(("ns" ,current-ns)))
-            (shell-command "xdg-open \"file:///tmp/clj-async-profiler/results/\""))))
+            (shell-command "xdg-open \"file:///tmp/clj-async-profiler/results/\"")))
+
+  (defun local/safe-cider-doc-buffer (orig-fun &rest args)
+    "Ignoră erorile CIDER când documentația pentru pop-up este nulă."
+    (condition-case nil
+        (apply orig-fun args)
+      (error nil)))
+
+  (advice-add 'cider-create-compact-doc-buffer :around #'local/safe-cider-doc-buffer))
 
 (with-eval-after-load 'apheleia
   (setf (alist-get 'cljfmt apheleia-formatters)

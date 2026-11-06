@@ -229,7 +229,16 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
     (insert-file-contents (expand-file-name key "~/.config/sops-nix/secrets/"))
     (string-trim (buffer-string))))
   #+end_src
+- fix hl-line-mode bug:
+  #+begin_src emacs-lisp
+  (defun local/safe-hl-line-highlight (orig-fun &rest args)
+  "Suprimă silențios erorile de tip args-out-of-range din hl-line."
+  (condition-case nil
+      (apply orig-fun args)
+    (args-out-of-range nil)))
 
+(advice-add 'global-hl-line-highlight :around #'local/safe-hl-line-highlight)
+  #+end_src
 **** Data
 
 #+begin_src emacs-lisp
@@ -3693,7 +3702,7 @@ Rules:
     :type 'string
     :group 'ai)
 
-  (defcustom local/commit-msg-llm 'qwen2.5-coder:7b
+  (defcustom local/commit-msg-llm 'qwen3.5:9b
     "LLM for commit message generation."
     :type 'symbol
     :group 'ai)
@@ -3771,7 +3780,7 @@ Inserts the generated message at point."
 
 (https://github.com/tninja/ai-code-interface.el)
 
-#+begin_src emacs-lisp
+#+begin_src emacs-lisp :tangle no
 (use-package ai-code
   :ensure t
   ;; :vc (:url "tninja/ai-code-interface.el")
@@ -4809,7 +4818,15 @@ Code:
            (form (cider-last-sexp))
            (clj-cmd (format "(do (require 'clj-async-profiler.core) (clj-async-profiler.core/profile %s))" form)))
             (cider-interactive-eval clj-cmd nil nil `(("ns" ,current-ns)))
-            (shell-command "xdg-open \"file:///tmp/clj-async-profiler/results/\""))))
+            (shell-command "xdg-open \"file:///tmp/clj-async-profiler/results/\"")))
+
+  (defun local/safe-cider-doc-buffer (orig-fun &rest args)
+    "Ignoră erorile CIDER când documentația pentru pop-up este nulă."
+    (condition-case nil
+        (apply orig-fun args)
+      (error nil)))
+
+  (advice-add 'cider-create-compact-doc-buffer :around #'local/safe-cider-doc-buffer))
     #+end_src
 **** format
   #+begin_src emacs-lisp
