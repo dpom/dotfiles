@@ -2290,6 +2290,14 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
     :key #'local/get-gemini-key
     :models '(gemini-2.5-flash
             gemini-2.5-pro))
+  (gptel-make-openai "llama.cpp"
+    :host "localhost:8080"
+    :protocol "http"
+    :endpoint "/v1/chat/completions"
+    :stream t
+    :models '((qwen3-coder-30b-a3b-instruct
+               :description "Qwen3 Coder 30B A3B (local)"
+               :capabilities (tool-use))))
   (setq gptel-backend gptel-ollama-backend))
 
   (with-eval-after-load 'gptel
@@ -2616,6 +2624,22 @@ codebase before making changes."
     :include-tool-results 't)
   )
 
+(with-eval-after-load 'gptel
+  (gptel-make-preset 'llama-cpp
+    :description "local llama.cpp coding agent"
+    :pre (lambda () (require 'llm-tool-collection))
+    :backend "llama.cpp"
+    :model 'qwen3-coder-30b-a3b-instruct
+    :system "You are Codex, a highly capable coding agent. Help the user
+write correct, idiomatic, well-structured code. When asked to implement
+something, think step by step, consider edge cases, and provide complete
+solutions. Use the available tools to search, read, and understand the
+codebase before making changes."
+    :highlight-mode 't
+    :confirm-tool-calls 'auto
+    :include-tool-results 't)
+  )
+
 (use-package gptel-agent
   :ensure t
   :after gptel
@@ -2676,7 +2700,7 @@ Rules:
     :type 'string
     :group 'ai)
 
-  (defcustom local/commit-msg-llm 'qwen2.5-coder:7b
+  (defcustom local/commit-msg-llm 'qwen3.6:27b
     "LLM for commit message generation."
     :type 'symbol
     :group 'ai)

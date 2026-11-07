@@ -163,6 +163,19 @@ let
               "limit": { "context": 204800, "output": 131072 }
             }
           }
+        },
+        "llama-cpp": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "llama.cpp (local)",
+          "options": {
+            "baseURL": "http://127.0.0.1:8080/v1"
+          },
+          "models": {
+            "qwen3-coder-30b-a3b-instruct": {
+              "name": "Qwen3 Coder 30B A3B (local)",
+              "limit": { "context": 65536, "output": 16384 }
+            }
+          }
         }
       }
     }

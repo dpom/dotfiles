@@ -27,6 +27,7 @@
     ./fonts.nix
     ./nvidia.nix
     ./greetd.nix
+    ./llama-cpp.nix
     ./ollama.nix
     ./podman.nix
     ./proton.nix
