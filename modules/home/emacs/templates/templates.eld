@@ -81,27 +81,27 @@ nix-mode
 
 org-mode
 
-(center "#+begin_center" n> r> n> "#+end_center")
-(clj (concat "#+begin" "_src clojure") n> n> (concat "#+end" "_src"))
-(comment "#+begin_comment" n> r> n> "#+end_comment")
+(center "#+begin_center" n r n "#+end_center")
+(clj "#+begin_src clojure" n n "#+end_src")
+(comment "#+begin_comment" n r n "#+end_comment")
 (dot "#+begin_src dot :file " p " :cmdline -Kdot -Tpng" n>
      "digraph G {" n>
      "}" n>
      "#+end_src")
-(elisp (concat "#+begin" "_src emacs-lisp ") n> n> (concat "#+end" "_src"))
 (example "#+begin_example" n> r> n> "#+end_example")
+(esrc "#+begin_src emacs-lisp" n "()" n "#+end_src" n)
 (img "#+ATTR_LaTeX: :width 0.8\textwidth :options keepaspectratio" n> "file:" p)
 (orghdr "#+TITLE: " (file-name-base (or (buffer-file-name) (buffer-name))) n
         "#+AUTHOR: " (user-full-name) n
         "#+DATE: " (format-time-string "%Y-%m-%d") n
         "#+STARTUP: overview indent align inlineimages" n n)
-(plantuml (concat "  #+begin" "_src plantuml :results verbatim") n "@startuml" n "@enduml" n> (concat "#+end" "_src"))
-(quote "#+begin_quote" n> r> n> "#+end_quote")
-(src (concat "#+begin" "_src ")
+(plantuml "#+begin_src plantuml :results verbatim" n "@startuml" n "@enduml" n "#+end_src")
+(quote "#+begin_quote" n r n "#+end_quote")
+(src "#+begin_src "
       (p (completing-read "Language: "
                                (mapcar #'symbol-name
                                        (mapcar #'car org-babel-load-languages)) nil nil))
-      n> n> (concat "#+end" "_src"))
+      n n "#+end_src")
 (title "#+title: " p n "#+author: " p n "#+language: " p n n)
 (verse "#+begin_verse" n> r> n> "#+end_verse")
 

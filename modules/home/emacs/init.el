@@ -1659,35 +1659,17 @@ If you omit CLOSE, it will reuse OPEN."
   )
 
 (use-package ox-json
-  :ensure t)
-;; (use-package ox-epub
-;;   :ensure t)
-;; (use-package ox-jira
-;;   :ensure t)
+  :ensure t
+  :config
+  (add-to-list 'org-babel-load-languages '(json . t)))
+
 (with-eval-after-load 'org
   (require 'org-src)
   (setq org-src-tab-acts-natively t
         org-src-fontify-natively t
         org-src-window-setup 'split-window-right
         org-src-preserve-indentation t)
-  (org-babel-do-load-languages
-   'org-babel-load-languages
-   (append org-babel-load-languages
-           '((C . t)
-             (css . t)
-             (ditaa . t)
-             (gnuplot . t)
-             (java . t)
-             (js . t)
-             (latex . t)
-             (makefile . t)
-             (org . t)
-             (python . t)
-             (scheme . t)
-             (sqlite . t)
-             (sql . t)
-             ;; (xml . t)
-             ))))
+  (add-to-list 'org-babel-load-languages '(org . t)))
 
 (use-package plantuml-mode
   :ensure t
@@ -1767,6 +1749,26 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
      ("m" "edit mermaid block" local/markdown-edit-mermaid)
      ("v" "view mermaid block" local/mermaid-preview)
      ("j" "jump" local/jump-menu)]))
+
+(use-package d2-mode
+  :ensure t
+  :init
+  (setq d2-flags (list "--layout" "elk" "--theme" "104"))
+  (define-advice d2-compile
+      (:before (&rest _) setup) (save-buffer)))
+
+(use-package ob-d2
+  :ensure t
+  :after org
+  :demand t
+  :config
+  (add-to-list 'org-babel-load-languages '(d2 . t)))
+
+(defun local/org-babel-refresh-images ()
+  (clear-image-cache)
+  (org-redisplay-inline-images))
+
+(add-hook 'org-babel-after-execute-hook #'local/org-babel-refresh-images)
 
 (use-package org-make-toc
   :ensure t
@@ -2023,7 +2025,7 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
 (transient-define-prefix local/agenda-menu ()
   "agenda menu"
   [["View"
-    ("a" "agenda" org-agenda-list)
+    ("a" "agenda" org-agenda)
     ("D" "day" org-agenda-day-view)
     ("W" "week" org-agenda-week-view)
     ("M" "month" org-agenda-month-view)]
@@ -2898,7 +2900,8 @@ Like normal Emacs `C-k'.  Kill to end of line and put content in kill-ring."
     (add-hook 'after-save 'executable-make-buffer-file-executable-if-script-p)
 
 (with-eval-after-load 'org
-  (add-to-list 'org-babel-load-languages '(shell . t)))
+  (add-to-list 'org-babel-load-languages '(shell . t))
+  (add-to-list 'org-babel-load-languages '(makefile . t)))
 
 (use-package direnv
   :ensure t
@@ -3280,6 +3283,8 @@ Like normal Emacs `C-k'.  Kill to end of line and put content in kill-ring."
   :vc (:url "https://github.com/emacsmirror/elisp-autofmt")
   :commands (elisp-autofmt-mode elisp-autofmt-buffer))
 
+(add-to-list 'org-babel-load-languages '(emacs-lisp . t))
+
 (use-package erk
   :ensure nil)
 
@@ -3657,6 +3662,8 @@ Analyze the following code and provide suggestions regarding:
       :ensure t
       :mode "\\.ya?ml\\'")
 
+(add-to-list 'org-babel-load-languages '(yaml . t))
+
 (with-eval-after-load 'transient
   (transient-define-prefix local/yaml-menu ()
   "yaml menu"
@@ -3700,6 +3707,8 @@ Analyze the following code and provide suggestions regarding:
 (use-package json-reformat
   :ensure t)
 
+(add-to-list 'org-babel-load-languages '(js . t))
+
 (with-eval-after-load 'transient
   (transient-define-prefix local/js-menu ()
   "js menu"
@@ -3709,52 +3718,57 @@ Analyze the following code and provide suggestions regarding:
    ("j" "jump" local/jump-menu)
    ("s" "snatch" jsons-print-path)]))
 
-    (use-package emacsql
-        :ensure t)
+(add-to-list 'org-babel-load-languages '(scheme . t))
 
-    (defun upcase-sql-keywords ()
-      (interactive)
-    (save-excursion
-        (dolist (keywords sql-mode-postgres-font-lock-keywords)
-        (goto-char (point-min))
-        (while (re-search-forward (car keywords) nil t)
-            (goto-char (+ 1 (match-beginning 0)))
-            (when (eql font-lock-keyword-face (face-at-point))
-            (backward-char)
-            (upcase-word 1)
-            (forward-char))))))
+  (use-package emacsql
+      :ensure t)
 
-    (use-package sqlformat
-      :ensure t
-      :config
-      (setq sqlformat-command 'pgformatter)
-      (setq sqlformat-args '("-s2" "-g")))
+  (defun upcase-sql-keywords ()
+    (interactive)
+  (save-excursion
+      (dolist (keywords sql-mode-postgres-font-lock-keywords)
+      (goto-char (point-min))
+      (while (re-search-forward (car keywords) nil t)
+          (goto-char (+ 1 (match-beginning 0)))
+          (when (eql font-lock-keyword-face (face-at-point))
+          (backward-char)
+          (upcase-word 1)
+          (forward-char))))))
 
-  (defun remove-trailing-newline (point)
-  (if (= (char-before point) ?\n)
-      (- point 1)
-      point))
+  (use-package sqlformat
+    :ensure t
+    :config
+    (setq sqlformat-command 'pgformatter)
+    (setq sqlformat-args '("-s2" "-g")))
 
-  (defun local/sql-format (start end)
-  "Formats the selected sql `sqlformat'"
-  (interactive "r")
-  (shell-command-on-region
-  ;; beginning and end of buffer
-  start
-  (remove-trailing-newline end)
-  ;; command and parameters
-  "sqlformat -k upper -r -s -"
-  ;; output buffer
-  (current-buffer)
-  ;; replace?
-  t
-  ;; name of the error buffer
-  "*Sqlformat Error Buffer*"
-  ;; show error buffer?
-  t))
+(defun remove-trailing-newline (point)
+(if (= (char-before point) ?\n)
+    (- point 1)
+    point))
 
-    (put 'sql-product 'safe-local-variable #'symbolp)
-    (put 'sql-sqlite-login-params 'safe-local-variable (lambda (_) t))
+(defun local/sql-format (start end)
+"Formats the selected sql `sqlformat'"
+(interactive "r")
+(shell-command-on-region
+;; beginning and end of buffer
+start
+(remove-trailing-newline end)
+;; command and parameters
+"sqlformat -k upper -r -s -"
+;; output buffer
+(current-buffer)
+;; replace?
+t
+;; name of the error buffer
+"*Sqlformat Error Buffer*"
+;; show error buffer?
+t))
+
+  (put 'sql-product 'safe-local-variable #'symbolp)
+  (put 'sql-sqlite-login-params 'safe-local-variable (lambda (_) t))
+
+(add-to-list 'org-babel-load-languages '(sql . t))
+(add-to-list 'org-babel-load-languages '(sqlite . t))
 
 (with-eval-after-load 'transient
   (transient-define-prefix local/sql-menu ()
@@ -3808,6 +3822,8 @@ Analyze the following code and provide suggestions regarding:
 
 (use-package web-beautify
     :ensure t)
+
+(add-to-list 'org-babel-load-languages '(css . t))
 
 (with-eval-after-load 'transient
   (transient-define-prefix local/html-menu ()
@@ -3994,6 +4010,8 @@ Detectează contextul atât în `python-mode` cât și în `clojure-mode` (Basil
 
     (local/python-show-doc func-name module)))
 
+(add-to-list 'org-babel-load-languages '(python . t))
+
 (with-eval-after-load 'transient
   (transient-define-prefix local/python-menu ()
   "python menu"
@@ -4050,6 +4068,7 @@ Detectează contextul atât în `python-mode` cât și în `clojure-mode` (Basil
     (c-set-style "bsd")
     (setq indent-tabs-mode nil
           c-basic-offset 2))
+(add-to-list 'org-babel-load-languages '(C . t))
 
 (use-package cc-mode
   :ensure nil

@@ -15,6 +15,7 @@
     clojure
     clojure-lsp
     cmake
+    d2
     fd
     ffmpegthumbnailer
     gcc
