@@ -2803,6 +2803,66 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
   (require 'org-contacts)
   (customize-set-variable 'org-contacts-files (list local/contacts-file)))
   #+end_src
+- calendare
+  #+begin_src emacs-lisp
+(with-eval-after-load 'calendar
+  ;; 1. Dezactivează toate categoriile implicite din Emacs
+  (setq holiday-general-holidays nil
+        holiday-solar-holidays t
+        holiday-local-holidays nil
+        holiday-bahai-holidays nil
+        holiday-hebrew-holidays nil
+        holiday-islamic-holidays nil
+        holiday-oriental-holidays nil)
+
+  ;; 2. Păstrează exclusiv lista ta de sărbători românești
+  (setq calendar-holidays
+        '((holiday-fixed 1 1 "Anul Nou")
+          (holiday-fixed 1 2 "A doua zi de Anul Nou")
+          (holiday-fixed 1 6 "Boboteaza")
+          (holiday-fixed 1 7 "Sfântul Ioan Botezătorul")
+          (holiday-fixed 1 24 "Ziua Unirii Principatelor Române")
+          (holiday-fixed 5 1 "Ziua Muncii")
+          (holiday-fixed 6 1 "Ziua Copilului")
+          (holiday-fixed 8 15 "Adormirea Maicii Domnului")
+          (holiday-fixed 11 30 "Sfântul Andrei")
+          (holiday-fixed 12 1 "Ziua Națională a României")
+          (holiday-fixed 12 25 "Crăciunul")
+          (holiday-fixed 12 26 "A doua zi de Crăciun"))))
+#+end_src
+- agenda custom
+  #+begin_src emacs-lisp
+(setq org-agenda-custom-commands
+      `(("b" "Custom view"
+         ((agenda "" ((org-agenda-span 1)
+                      (org-deadline-warning-days 0)
+                      (org-agenda-block-separator nil)
+                      (org-scheduled-past-days 0)
+                      (org-agenda-day-face-function (lambda (date) 'org-agenda-date))
+                      (org-agenda-overriding-header "\nToday's agenda\n")))
+          (agenda "" ((org-agenda-start-on-weekday nil)
+                      (org-agenda-start-day "+1d")
+                      (org-agenda-span 3)
+                      (org-deadline-warning-days 0)
+                      (org-agenda-block-separator nil)
+                      (org-agenda-skip-function '(org-agenda-skip-entry-if 'regexp "planificarea"))
+                      (org-agenda-overriding-header "\nNext three days\n")))
+          (agenda "" ((org-agenda-time-grid nil)
+                      (org-agenda-start-on-weekday nil)
+                      ;; We don't want to replicate the previous section's
+                      ;; three days, so we start counting from the day after.
+                      (org-agenda-start-day "+4d")
+                      (org-agenda-span 14)
+                      (org-agenda-show-all-dates nil)
+                      (org-deadline-warning-days 0)
+                      (org-agenda-block-separator nil)
+                      (org-agenda-entry-types '(:deadline))
+                      (org-agenda-skip-function '(org-agenda-skip-entry-if 'todo 'done))
+                      (org-agenda-overriding-header "\nUpcoming deadlines (+14d)\n"))))
+
+                      )))
+
+#+end_src
 
 **** agenda menu
 
