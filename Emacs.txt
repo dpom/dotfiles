@@ -231,13 +231,22 @@ Call ORIG-FN with ARGS and suppress the output.  Usage:
   #+end_src
 - fix hl-line-mode bug:
   #+begin_src emacs-lisp
-  (defun local/safe-hl-line-highlight (orig-fun &rest args)
+(defun local/safe-hl-line-highlight (orig-fun &rest args)
   "Suprimă silențios erorile de tip args-out-of-range din hl-line."
   (condition-case nil
       (apply orig-fun args)
     (args-out-of-range nil)))
 
 (advice-add 'global-hl-line-highlight :around #'local/safe-hl-line-highlight)
+(advice-add 'hl-line-highlight :around #'local/safe-hl-line-highlight)
+(advice-add 'jit-lock--antiblink-post-command :around #'local/safe-hl-line-highlight)
+
+(defun local/safe-jit-lock-function (orig-fun start &rest args)
+  "Asigură-te că `jit-lock-function` primește un integer, nu un marker."
+  (let ((safe-start (if (markerp start) (marker-position start) start)))
+    (apply orig-fun safe-start args)))
+
+(advice-add 'jit-lock-function :around #'local/safe-jit-lock-function)
   #+end_src
 **** Data
 
@@ -2863,6 +2872,39 @@ Works with both file-visiting buffers and temp buffers (e.g. *mermaid-edit*)."
                       )))
 
 #+end_src
+
+- refresh stale agenda before entry commands
+  #+begin_src emacs-lisp
+(defun local/org-agenda-refresh-if-stale (&rest _)
+  "Rebuild the agenda when its entries point to killed Org buffers.
+Agenda entries hold markers into the Org files they were built from.
+If those buffers are killed, the markers become detached and entry
+commands fail with `(wrong-type-argument stringp nil)'."
+  (when (and (derived-mode-p 'org-agenda-mode)
+             (let ((marker (org-get-at-bol 'org-marker)))
+               (and (markerp marker)
+                    (null (marker-buffer marker)))))
+    (org-agenda-redo t)))
+
+(with-eval-after-load 'org-agenda
+  (dolist (command '(org-agenda-check-no-diary org-agenda-goto))
+    (unless (advice-member-p #'local/org-agenda-refresh-if-stale command)
+      (advice-add command :before #'local/org-agenda-refresh-if-stale))))
+  #+end_src
+
+- keep agenda files alive
+  #+begin_src emacs-lisp
+(defun local/org-agenda-file-buffer-p ()
+  "Non-nil when the current buffer visits an Org agenda file."
+  (and (derived-mode-p 'org-mode)
+       (buffer-file-name)
+       (member (expand-file-name (buffer-file-name))
+               (mapcar #'expand-file-name (org-agenda-files t)))))
+
+(with-eval-after-load 'buffer-terminator
+  (add-to-list 'buffer-terminator-rules-alist
+               '(call-function . local/org-agenda-file-buffer-p)))
+  #+end_src
 
 **** agenda menu
 
