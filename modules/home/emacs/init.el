@@ -2793,7 +2793,7 @@ Rules:
     :type 'string
     :group 'ai)
 
-  (defcustom local/commit-msg-llm 'qwen3.6:27b
+  (defcustom local/commit-msg-llm 'ornith-1.5:9b
     "LLM for commit message generation."
     :type 'symbol
     :group 'ai)

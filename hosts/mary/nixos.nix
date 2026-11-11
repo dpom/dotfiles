@@ -153,7 +153,7 @@
   dpom-ollama.enable = true;
   dpom-ollama.acceleration = "rocm";
   
-  dpom-llama-cpp.enable = true;
+  dpom-llama-cpp.enable = false;
   dpom-llama-cpp.acceleration = "rocm";
   programs.nix-ld.enable = true;
   

@@ -507,7 +507,7 @@ dpom-ollama.acceleration = "rocm";
 **** llama.cpp
 
 #+begin_src nix :noweb-ref mary-nixos
-dpom-llama-cpp.enable = true;
+dpom-llama-cpp.enable = false;
 dpom-llama-cpp.acceleration = "rocm";
 #+end_src
 
@@ -568,7 +568,7 @@ virtualisation.libvirtd.qemu.runAsRoot = true; # Uneori necesar pentru acces la 
   dpom-kitty.enable = true;
   dpom-office.enable = true;
   dpom-opencode.enable = true;
-  dpom-oh-my-pi.enable = true;
+  dpom-oh-my-pi.enable = false;
   dpom-pi.enable = true;
   dpom-rofi.enable = true;
   dpom-sway.enable = true;
